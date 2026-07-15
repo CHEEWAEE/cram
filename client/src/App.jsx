@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import ThemeToggle from "./ThemeToggle";
+import InstallPrompt from "./InstallPrompt";
 import Decks from "./Decks";
 import "./App.css";
 
@@ -72,6 +73,7 @@ function App() {
     return (
       <>
       <ThemeToggle />
+      <InstallPrompt />
       <div className="auth-page">
         <div className="auth-header">
           <h1>Cram</h1>
@@ -106,6 +108,7 @@ function App() {
     return (
       <>
       <ThemeToggle />
+      <InstallPrompt />
       <div className="app-shell">
         <div className="app-topbar">
           <span className="app-brand">Cram</span>
@@ -125,6 +128,7 @@ function App() {
   return (
     <>
     <ThemeToggle />
+    <InstallPrompt />
     <div className="auth-page">
       <div className="auth-header">
         <h1>Cram</h1>
