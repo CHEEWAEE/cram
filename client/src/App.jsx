@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "./supabase";
+import "./App.css";
 
 function App() {
   const [email, setEmail] = useState("");
@@ -41,34 +42,61 @@ function App() {
 
   if (user) {
     return (
-      <div>
-        <h1>Cram</h1>
-        <p>Logged in as {user.email}</p>
-        <button onClick={callApi}>Call /api/me</button>
-        <button onClick={handleLogout}>Log out</button>
-        <p>{message}</p>
+      <div className="auth-page">
+        <div className="auth-header">
+          <h1>Cram</h1>
+          <span className="auth-tagline">Logged in as {user.email}</span>
+        </div>
+        <div className="auth-card">
+          <div className="auth-actions">
+            <button className="auth-button auth-button-secondary" onClick={callApi}>
+              Call /api/me
+            </button>
+            <button className="auth-button auth-button-primary" onClick={handleLogout}>
+              Log out
+            </button>
+          </div>
+          <p className="auth-message">{message}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <h1>Cram</h1>
-      <input
-        type="email"
-        placeholder="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <input
-        type="password"
-        placeholder="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
-      <button onClick={handleSignUp}>Sign up</button>
-      <button onClick={handleLogin}>Log in</button>
-      <p>{message}</p>
+    <div className="auth-page">
+      <div className="auth-header">
+        <h1>Cram</h1>
+        <span className="auth-tagline">Flashcards that let you actually cram.</span>
+      </div>
+      <div className="auth-card">
+        <label className="auth-field">
+          Email
+          <input
+            type="email"
+            placeholder="you@school.edu"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </label>
+        <label className="auth-field">
+          Password
+          <input
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </label>
+        <div className="auth-actions">
+          <button className="auth-button auth-button-secondary" onClick={handleSignUp}>
+            Sign up
+          </button>
+          <button className="auth-button auth-button-primary" onClick={handleLogin}>
+            Log in
+          </button>
+        </div>
+        <p className="auth-message">{message}</p>
+      </div>
     </div>
   );
 }
