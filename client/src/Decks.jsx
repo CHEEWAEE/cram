@@ -1,35 +1,15 @@
 import { useEffect, useState } from "react";
-import { supabase } from "./supabase";
-import ImageDropZone from "./ImageDropZone";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3001";
-
-async function authFetch(path, options = {}) {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {}),
-    },
-  });
-  const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(body?.error || `Request failed (${res.status})`);
-  return body;
-}
+import { authFetch } from "./api";
+import DeckDetail from "./DeckDetail";
 
 function Decks() {
   const [decks, setDecks] = useState([]);
   const [selectedDeck, setSelectedDeck] = useState(null);
-  const [cards, setCards] = useState([]);
   const [newDeckTitle, setNewDeckTitle] = useState("");
   const [newDeckDescription, setNewDeckDescription] = useState("");
-  const [newCardFront, setNewCardFront] = useState("");
-  const [newCardBack, setNewCardBack] = useState("");
-  const [newCardFrontImage, setNewCardFrontImage] = useState(null);
-  const [newCardBackImage, setNewCardBackImage] = useState(null);
+  const [editingDeckId, setEditingDeckId] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -39,14 +19,6 @@ function Decks() {
   async function loadDecks() {
     try {
       setDecks(await authFetch("/api/decks"));
-    } catch (e) {
-      setError(e.message);
-    }
-  }
-
-  async function loadCards(deckId) {
-    try {
-      setCards(await authFetch(`/api/decks/${deckId}/cards`));
     } catch (e) {
       setError(e.message);
     }
@@ -71,34 +43,35 @@ function Decks() {
     }
   }
 
-  async function openDeck(deck) {
-    setSelectedDeck(deck);
-    setError("");
-    await loadCards(deck.id);
+  function startEditDeck(deck) {
+    setEditingDeckId(deck.id);
+    setEditTitle(deck.title);
+    setEditDescription(deck.description || "");
   }
 
-  async function handleCreateCard() {
-    const hasFront = newCardFront.trim() || newCardFrontImage;
-    const hasBack = newCardBack.trim() || newCardBackImage;
-    if (!hasFront || !hasBack) {
-      return setError("Each side needs text, an image, or both.");
+  async function handleSaveDeck(deckId) {
+    if (!editTitle.trim()) return setError("Deck title is required.");
+    try {
+      await authFetch(`/api/decks/${deckId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title: editTitle, description: editDescription }),
+      });
+      setEditingDeckId(null);
+      setError("");
+      await loadDecks();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function handleDeleteDeck(deck) {
+    if (!window.confirm(`Delete "${deck.title}" and all its cards? This can't be undone.`)) {
+      return;
     }
     try {
-      await authFetch(`/api/decks/${selectedDeck.id}/cards`, {
-        method: "POST",
-        body: JSON.stringify({
-          frontText: newCardFront,
-          backText: newCardBack,
-          frontImage: newCardFrontImage,
-          backImage: newCardBackImage,
-        }),
-      });
-      setNewCardFront("");
-      setNewCardBack("");
-      setNewCardFrontImage(null);
-      setNewCardBackImage(null);
+      await authFetch(`/api/decks/${deck.id}`, { method: "DELETE" });
       setError("");
-      await loadCards(selectedDeck.id);
+      await loadDecks();
     } catch (e) {
       setError(e.message);
     }
@@ -106,71 +79,7 @@ function Decks() {
 
   if (selectedDeck) {
     return (
-      <div className="decks-page">
-        <div className="decks-header">
-          <button className="auth-link" onClick={() => setSelectedDeck(null)}>
-            ← Decks
-          </button>
-          <h2>{selectedDeck.title}</h2>
-        </div>
-
-        <div className="card-list">
-          {cards.map((card) => (
-            <div className="card-row" key={card.id}>
-              {card.front_image_url && (
-                <img className="card-thumb" src={card.front_image_url} alt="" />
-              )}
-              <span className="card-front">{card.front_text}</span>
-              {card.back_image_url && (
-                <img className="card-thumb" src={card.back_image_url} alt="" />
-              )}
-              <span className="card-back">{card.back_text}</span>
-            </div>
-          ))}
-          {cards.length === 0 && (
-            <p className="deck-empty">No cards yet — add the first one below.</p>
-          )}
-        </div>
-
-        <div className="create-card-form">
-          <label className="auth-field">
-            Front
-            <input
-              value={newCardFront}
-              onChange={(e) => setNewCardFront(e.target.value)}
-              placeholder="Question"
-            />
-          </label>
-          <label className="auth-field">
-            Back
-            <input
-              value={newCardBack}
-              onChange={(e) => setNewCardBack(e.target.value)}
-              placeholder="Answer"
-            />
-          </label>
-          <div className="card-images">
-            <ImageDropZone
-              label="Drop, paste, or click to add a front image"
-              value={newCardFrontImage}
-              onChange={setNewCardFrontImage}
-            />
-            <ImageDropZone
-              label="Drop, paste, or click to add a back image"
-              value={newCardBackImage}
-              onChange={setNewCardBackImage}
-            />
-          </div>
-          <button
-            className="auth-button auth-button-primary"
-            onClick={handleCreateCard}
-          >
-            Add card
-          </button>
-        </div>
-
-        {error && <p className="auth-message">{error}</p>}
-      </div>
+      <DeckDetail deck={selectedDeck} onBack={() => setSelectedDeck(null)} />
     );
   }
 
@@ -179,18 +88,59 @@ function Decks() {
       <h2>Your decks</h2>
 
       <div className="deck-list">
-        {decks.map((deck) => (
-          <button
-            className="deck-row"
-            key={deck.id}
-            onClick={() => openDeck(deck)}
-          >
-            <span className="deck-title">{deck.title}</span>
-            {deck.description && (
-              <span className="deck-description">{deck.description}</span>
-            )}
-          </button>
-        ))}
+        {decks.map((deck) =>
+          editingDeckId === deck.id ? (
+            <div className="deck-row-editing" key={deck.id}>
+              <input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Title"
+              />
+              <input
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Description (optional)"
+              />
+              <div className="row-actions">
+                <button
+                  className="auth-button auth-button-primary"
+                  onClick={() => handleSaveDeck(deck.id)}
+                >
+                  Save
+                </button>
+                <button
+                  className="auth-button auth-button-secondary"
+                  onClick={() => setEditingDeckId(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="deck-row" key={deck.id}>
+              <button
+                className="deck-row-main"
+                onClick={() => setSelectedDeck(deck)}
+              >
+                <span className="deck-title">{deck.title}</span>
+                {deck.description && (
+                  <span className="deck-description">{deck.description}</span>
+                )}
+              </button>
+              <div className="row-actions">
+                <button className="icon-button" onClick={() => startEditDeck(deck)}>
+                  Edit
+                </button>
+                <button
+                  className="icon-button icon-button-danger"
+                  onClick={() => handleDeleteDeck(deck)}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          )
+        )}
         {decks.length === 0 && (
           <p className="deck-empty">No decks yet — create your first one below.</p>
         )}
