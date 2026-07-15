@@ -107,13 +107,13 @@ function App() {
   if (user) {
     return (
       <>
-      <ThemeToggle />
       <InstallPrompt />
       <div className="app-shell">
         <div className="app-topbar">
           <span className="app-brand">Cram</span>
           <div className="app-topbar-right">
             <span className="auth-tagline">{user.email}</span>
+            <ThemeToggle inline />
             <button className="auth-button auth-button-secondary" onClick={handleLogout}>
               Log out
             </button>

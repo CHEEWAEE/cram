@@ -17,6 +17,11 @@
   color: var(--accent);
 }
 
+.theme-toggle-inline {
+  position: static;
+  flex: none;
+}
+
 .install-prompt {
   position: fixed;
   bottom: 16px;
