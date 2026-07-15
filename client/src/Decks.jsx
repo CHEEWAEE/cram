@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import ImageDropZone from "./ImageDropZone";
 
-const API_BASE = "http://localhost:3001";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 async function authFetch(path, options = {}) {
   const { data: sessionData } = await supabase.auth.getSession();
