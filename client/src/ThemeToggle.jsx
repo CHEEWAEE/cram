@@ -8,7 +8,7 @@ function getInitialTheme() {
     : "light";
 }
 
-function ThemeToggle() {
+function ThemeToggle({ inline = false }) {
   const [theme, setTheme] = useState(getInitialTheme);
 
   useEffect(() => {
@@ -18,7 +18,7 @@ function ThemeToggle() {
 
   return (
     <button
-      className="theme-toggle"
+      className={inline ? "theme-toggle theme-toggle-inline" : "theme-toggle"}
       onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
     >
       {theme === "dark" ? "Light mode" : "Dark mode"}
