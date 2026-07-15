@@ -1,13 +1,15 @@
 require("dotenv").config();
+const crypto = require("crypto");
 const express = require("express");
 const cors = require("cors");
 const { createRemoteJWKSet, jwtVerify } = require("jose");
 const { pool } = require("./db");
+const { supabase } = require("./supabase");
 
 const app = express();
 
 app.use(cors()); // allow all origins for now; we'll lock this to the Vercel domain at deploy time
-app.use(express.json()); // parse JSON request bodies
+app.use(express.json({ limit: "20mb" })); // parse JSON bodies; raised for base64 card images
 
 // Supabase signs auth tokens with project-specific asymmetric keys (ES256),
 // published at this JWKS endpoint — there's no shared secret to verify against.
@@ -100,21 +102,61 @@ app.get("/api/decks/:deckId/cards", requireAuth, async (req, res) => {
   }
 });
 
+const CARD_IMAGE_EXT_BY_MIME = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/gif": "gif",
+  "image/webp": "webp",
+};
+
+// Card images arrive as data URLs (data:<mime>;base64,<data>) from the
+// drag-drop/paste UI; decode and store them in the card-images bucket.
+async function uploadCardImage(deckId, dataUrl) {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!match) throw new Error("Invalid image data");
+  const [, mime, base64] = match;
+  const ext = CARD_IMAGE_EXT_BY_MIME[mime];
+  if (!ext) throw new Error(`Unsupported image type: ${mime}`);
+
+  const path = `${deckId}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage
+    .from("card-images")
+    .upload(path, Buffer.from(base64, "base64"), { contentType: mime });
+  if (error) throw error;
+
+  const { data } = supabase.storage.from("card-images").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 app.post("/api/decks/:deckId/cards", requireAuth, async (req, res) => {
   try {
     const deck = await findOwnedDeck(req.params.deckId, req.user.id);
     if (!deck) return res.status(404).json({ error: "Deck not found" });
 
-    const { frontText, backText } = req.body;
-    if (!frontText || !frontText.trim() || !backText || !backText.trim()) {
+    const { frontText, backText, frontImage, backImage } = req.body;
+    const hasFront = (frontText && frontText.trim()) || frontImage;
+    const hasBack = (backText && backText.trim()) || backImage;
+    if (!hasFront || !hasBack) {
       return res
         .status(400)
-        .json({ error: "frontText and backText are required" });
+        .json({ error: "Each side needs text, an image, or both" });
     }
 
+    const [frontImageUrl, backImageUrl] = await Promise.all([
+      frontImage ? uploadCardImage(req.params.deckId, frontImage) : null,
+      backImage ? uploadCardImage(req.params.deckId, backImage) : null,
+    ]);
+
     const { rows } = await pool.query(
-      "insert into cards (deck_id, front_text, back_text) values ($1, $2, $3) returning *",
-      [req.params.deckId, frontText.trim(), backText.trim()]
+      `insert into cards (deck_id, front_text, back_text, front_image_url, back_image_url)
+       values ($1, $2, $3, $4, $5) returning *`,
+      [
+        req.params.deckId,
+        frontText && frontText.trim() ? frontText.trim() : null,
+        backText && backText.trim() ? backText.trim() : null,
+        frontImageUrl,
+        backImageUrl,
+      ]
     );
     res.status(201).json(rows[0]);
   } catch (e) {
