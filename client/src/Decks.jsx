@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
+import ImageDropZone from "./ImageDropZone";
 
 const API_BASE = "http://localhost:3001";
 
@@ -27,6 +28,8 @@ function Decks() {
   const [newDeckDescription, setNewDeckDescription] = useState("");
   const [newCardFront, setNewCardFront] = useState("");
   const [newCardBack, setNewCardBack] = useState("");
+  const [newCardFrontImage, setNewCardFrontImage] = useState(null);
+  const [newCardBackImage, setNewCardBackImage] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -75,8 +78,10 @@ function Decks() {
   }
 
   async function handleCreateCard() {
-    if (!newCardFront.trim() || !newCardBack.trim()) {
-      return setError("Both sides of the card are required.");
+    const hasFront = newCardFront.trim() || newCardFrontImage;
+    const hasBack = newCardBack.trim() || newCardBackImage;
+    if (!hasFront || !hasBack) {
+      return setError("Each side needs text, an image, or both.");
     }
     try {
       await authFetch(`/api/decks/${selectedDeck.id}/cards`, {
@@ -84,10 +89,14 @@ function Decks() {
         body: JSON.stringify({
           frontText: newCardFront,
           backText: newCardBack,
+          frontImage: newCardFrontImage,
+          backImage: newCardBackImage,
         }),
       });
       setNewCardFront("");
       setNewCardBack("");
+      setNewCardFrontImage(null);
+      setNewCardBackImage(null);
       setError("");
       await loadCards(selectedDeck.id);
     } catch (e) {
@@ -108,7 +117,13 @@ function Decks() {
         <div className="card-list">
           {cards.map((card) => (
             <div className="card-row" key={card.id}>
+              {card.front_image_url && (
+                <img className="card-thumb" src={card.front_image_url} alt="" />
+              )}
               <span className="card-front">{card.front_text}</span>
+              {card.back_image_url && (
+                <img className="card-thumb" src={card.back_image_url} alt="" />
+              )}
               <span className="card-back">{card.back_text}</span>
             </div>
           ))}
@@ -134,6 +149,18 @@ function Decks() {
               placeholder="Answer"
             />
           </label>
+          <div className="card-images">
+            <ImageDropZone
+              label="Drop, paste, or click to add a front image"
+              value={newCardFrontImage}
+              onChange={setNewCardFrontImage}
+            />
+            <ImageDropZone
+              label="Drop, paste, or click to add a back image"
+              value={newCardBackImage}
+              onChange={setNewCardBackImage}
+            />
+          </div>
           <button
             className="auth-button auth-button-primary"
             onClick={handleCreateCard}
