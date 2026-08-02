@@ -132,6 +132,9 @@ function App() {
     <div className="auth-page">
       <div className="auth-header">
         <h1>Cram</h1>
+        <p className="auth-free">
+          Free to use. No subscriptions, no payments, no charges of any kind.
+        </p>
       </div>
       <div className="auth-card">
         <label className="auth-field">
@@ -165,6 +168,9 @@ function App() {
         </button>
         <p className="auth-message">{message}</p>
       </div>
+      <footer className="auth-footer">
+        <a href="/about">About Cram</a>
+      </footer>
     </div>
     </>
   );
