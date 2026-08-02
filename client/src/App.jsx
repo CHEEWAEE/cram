@@ -132,7 +132,6 @@ function App() {
     <div className="auth-page">
       <div className="auth-header">
         <h1>Cram</h1>
-        <span className="auth-tagline">Flashcards that let you actually cram.</span>
       </div>
       <div className="auth-card">
         <label className="auth-field">
