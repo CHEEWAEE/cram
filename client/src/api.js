@@ -18,3 +18,19 @@ export async function authFetch(path, options = {}) {
   if (!res.ok) throw new Error(body?.error || `Request failed (${res.status})`);
   return body;
 }
+
+// Sends a card image straight from the browser to Supabase Storage. The API only
+// hands out a one-shot upload token, so the file itself never travels through it.
+export async function uploadCardImage(deckId, file) {
+  const { path, token, publicUrl } = await authFetch(
+    `/api/decks/${deckId}/uploads`,
+    { method: "POST", body: JSON.stringify({ contentType: file.type }) }
+  );
+
+  const { error } = await supabase.storage
+    .from("card-images")
+    .uploadToSignedUrl(path, token, file, { contentType: file.type });
+  if (error) throw new Error(error.message);
+
+  return publicUrl;
+}
