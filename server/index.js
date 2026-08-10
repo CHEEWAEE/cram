@@ -9,7 +9,7 @@ const { supabase } = require("./supabase");
 const app = express();
 
 app.use(cors()); // allow all origins for now; we'll lock this to the Vercel domain at deploy time
-app.use(express.json({ limit: "20mb" })); // parse JSON bodies; raised for base64 card images
+app.use(express.json({ limit: "1mb" })); // card images upload straight to storage, so bodies stay small
 
 // Supabase signs auth tokens with project-specific asymmetric keys (ES256),
 // published at this JWKS endpoint — there's no shared secret to verify against.
@@ -77,20 +77,11 @@ app.post("/api/decks", requireAuth, async (req, res) => {
   }
 });
 
-// A deck belongs to req.user only if this returns a row; RLS is off, so every
-// deck/card route must check ownership itself before touching cards.
-async function findOwnedDeck(deckId, userId) {
-  const { rows } = await pool.query(
-    "select id from decks where id = $1 and user_id = $2",
-    [deckId, userId]
-  );
-  return rows[0] || null;
-}
-
+// RLS is off, so every deck/card route has to prove ownership itself. Rather than
+// doing that as a separate SELECT — which costs a full round trip to the database
+// before the real work starts — each statement below folds `user_id = $n` into its
+// own WHERE clause and treats "no rows affected" as a 404.
 app.patch("/api/decks/:deckId", requireAuth, async (req, res) => {
-  const deck = await findOwnedDeck(req.params.deckId, req.user.id);
-  if (!deck) return res.status(404).json({ error: "Deck not found" });
-
   const { title, description } = req.body;
   if (!title || !title.trim()) {
     return res.status(400).json({ error: "title is required" });
@@ -98,9 +89,11 @@ app.patch("/api/decks/:deckId", requireAuth, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      "update decks set title = $1, description = $2, updated_at = now() where id = $3 returning *",
-      [title.trim(), description || null, req.params.deckId]
+      `update decks set title = $1, description = $2, updated_at = now()
+       where id = $3 and user_id = $4 returning *`,
+      [title.trim(), description || null, req.params.deckId, req.user.id]
     );
+    if (!rows[0]) return res.status(404).json({ error: "Deck not found" });
     res.json(rows[0]);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -108,18 +101,20 @@ app.patch("/api/decks/:deckId", requireAuth, async (req, res) => {
 });
 
 app.delete("/api/decks/:deckId", requireAuth, async (req, res) => {
-  const deck = await findOwnedDeck(req.params.deckId, req.user.id);
-  if (!deck) return res.status(404).json({ error: "Deck not found" });
-
   try {
-    await pool.query("delete from decks where id = $1", [req.params.deckId]);
+    const { rows } = await pool.query(
+      "delete from decks where id = $1 and user_id = $2 returning id",
+      [req.params.deckId, req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Deck not found" });
     res.status(204).end();
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// A card belongs to req.user only if it exists in a deck they own.
+// A card belongs to req.user only if it exists in a deck they own. Still needed by
+// the card PATCH, which has to read the current row to validate the merged result.
 async function findOwnedCard(deckId, cardId, userId) {
   const { rows } = await pool.query(
     `select cards.* from cards
@@ -132,14 +127,23 @@ async function findOwnedCard(deckId, cardId, userId) {
 
 app.get("/api/decks/:deckId/cards", requireAuth, async (req, res) => {
   try {
-    const deck = await findOwnedDeck(req.params.deckId, req.user.id);
-    if (!deck) return res.status(404).json({ error: "Deck not found" });
-
+    // LEFT JOIN so an owned-but-empty deck still returns one row (with null card
+    // columns) — that's what separates "no cards yet" from "deck isn't yours".
     const { rows } = await pool.query(
-      "select * from cards where deck_id = $1 order by created_at asc",
-      [req.params.deckId]
+      `select decks.id as deck_exists, cards.*
+       from decks
+       left join cards on cards.deck_id = decks.id
+       where decks.id = $1 and decks.user_id = $2
+       order by cards.created_at asc`,
+      [req.params.deckId, req.user.id]
     );
-    res.json(rows);
+    if (rows.length === 0) return res.status(404).json({ error: "Deck not found" });
+
+    const cards =
+      rows[0].id === null
+        ? []
+        : rows.map(({ deck_exists, ...card }) => card);
+    res.json(cards);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -152,58 +156,84 @@ const CARD_IMAGE_EXT_BY_MIME = {
   "image/webp": "webp",
 };
 
-// Card images arrive as data URLs (data:<mime>;base64,<data>) from the
-// drag-drop/paste UI; decode and store them in the card-images bucket.
-async function uploadCardImage(deckId, dataUrl) {
-  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
-  if (!match) throw new Error("Invalid image data");
-  const [, mime, base64] = match;
-  const ext = CARD_IMAGE_EXT_BY_MIME[mime];
-  if (!ext) throw new Error(`Unsupported image type: ${mime}`);
+const PUBLIC_IMAGE_PREFIX = `${process.env.SUPABASE_URL}/storage/v1/object/public/card-images/`;
 
-  const path = `${deckId}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage
-    .from("card-images")
-    .upload(path, Buffer.from(base64, "base64"), { contentType: mime });
-  if (error) throw error;
-
-  const { data } = supabase.storage.from("card-images").getPublicUrl(path);
-  return data.publicUrl;
+// Card image URLs arrive from the client after it uploads straight to storage, so
+// they're user-controlled strings — only accept ones pointing into our own bucket.
+function validateImageUrl(url) {
+  if (url === null || url === undefined) return null;
+  if (typeof url !== "string" || !url.startsWith(PUBLIC_IMAGE_PREFIX)) {
+    throw Object.assign(new Error("Invalid image URL"), { status: 400 });
+  }
+  return url;
 }
+
+// Hands the browser a one-shot upload token so a multi-megabyte image goes
+// straight from the user to Supabase Storage instead of being base64'd through
+// this API — which used to mean the image crossed the network twice.
+app.post("/api/decks/:deckId/uploads", requireAuth, async (req, res) => {
+  try {
+    const ext = CARD_IMAGE_EXT_BY_MIME[req.body.contentType];
+    if (!ext) {
+      return res
+        .status(400)
+        .json({ error: `Unsupported image type: ${req.body.contentType}` });
+    }
+
+    const { rows } = await pool.query(
+      "select id from decks where id = $1 and user_id = $2",
+      [req.params.deckId, req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Deck not found" });
+
+    const path = `${req.params.deckId}/${crypto.randomUUID()}.${ext}`;
+    const { data, error } = await supabase.storage
+      .from("card-images")
+      .createSignedUploadUrl(path);
+    if (error) throw error;
+
+    const { data: pub } = supabase.storage
+      .from("card-images")
+      .getPublicUrl(path);
+    res.json({ path: data.path, token: data.token, publicUrl: pub.publicUrl });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
 
 app.post("/api/decks/:deckId/cards", requireAuth, async (req, res) => {
   try {
-    const deck = await findOwnedDeck(req.params.deckId, req.user.id);
-    if (!deck) return res.status(404).json({ error: "Deck not found" });
+    const { frontText, backText, frontImageUrl, backImageUrl } = req.body;
+    const front = validateImageUrl(frontImageUrl);
+    const back = validateImageUrl(backImageUrl);
 
-    const { frontText, backText, frontImage, backImage } = req.body;
-    const hasFront = (frontText && frontText.trim()) || frontImage;
-    const hasBack = (backText && backText.trim()) || backImage;
+    const hasFront = (frontText && frontText.trim()) || front;
+    const hasBack = (backText && backText.trim()) || back;
     if (!hasFront || !hasBack) {
       return res
         .status(400)
         .json({ error: "Each side needs text, an image, or both" });
     }
 
-    const [frontImageUrl, backImageUrl] = await Promise.all([
-      frontImage ? uploadCardImage(req.params.deckId, frontImage) : null,
-      backImage ? uploadCardImage(req.params.deckId, backImage) : null,
-    ]);
-
+    // INSERT ... SELECT ... WHERE EXISTS folds the ownership check into the write.
     const { rows } = await pool.query(
       `insert into cards (deck_id, front_text, back_text, front_image_url, back_image_url)
-       values ($1, $2, $3, $4, $5) returning *`,
+       select $1, $2, $3, $4, $5
+       where exists (select 1 from decks where id = $1 and user_id = $6)
+       returning *`,
       [
         req.params.deckId,
         frontText && frontText.trim() ? frontText.trim() : null,
         backText && backText.trim() ? backText.trim() : null,
-        frontImageUrl,
-        backImageUrl,
+        front,
+        back,
+        req.user.id,
       ]
     );
+    if (!rows[0]) return res.status(404).json({ error: "Deck not found" });
     res.status(201).json(rows[0]);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -216,7 +246,7 @@ app.patch("/api/decks/:deckId/cards/:cardId", requireAuth, async (req, res) => {
     );
     if (!card) return res.status(404).json({ error: "Card not found" });
 
-    const { frontText, backText, frontImage, backImage } = req.body;
+    const { frontText, backText, frontImageUrl, backImageUrl } = req.body;
     const updates = {};
     if (frontText !== undefined) {
       updates.front_text = frontText.trim() ? frontText.trim() : null;
@@ -224,15 +254,11 @@ app.patch("/api/decks/:deckId/cards/:cardId", requireAuth, async (req, res) => {
     if (backText !== undefined) {
       updates.back_text = backText.trim() ? backText.trim() : null;
     }
-    if (frontImage !== undefined) {
-      updates.front_image_url = frontImage
-        ? await uploadCardImage(req.params.deckId, frontImage)
-        : null;
+    if (frontImageUrl !== undefined) {
+      updates.front_image_url = validateImageUrl(frontImageUrl);
     }
-    if (backImage !== undefined) {
-      updates.back_image_url = backImage
-        ? await uploadCardImage(req.params.deckId, backImage)
-        : null;
+    if (backImageUrl !== undefined) {
+      updates.back_image_url = validateImageUrl(backImageUrl);
     }
 
     const hasFront =
@@ -268,20 +294,20 @@ app.patch("/api/decks/:deckId/cards/:cardId", requireAuth, async (req, res) => {
     );
     res.json(rows[0]);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
 app.delete("/api/decks/:deckId/cards/:cardId", requireAuth, async (req, res) => {
   try {
-    const card = await findOwnedCard(
-      req.params.deckId,
-      req.params.cardId,
-      req.user.id
+    const { rows } = await pool.query(
+      `delete from cards using decks
+       where cards.id = $1 and cards.deck_id = $2
+         and decks.id = cards.deck_id and decks.user_id = $3
+       returning cards.id`,
+      [req.params.cardId, req.params.deckId, req.user.id]
     );
-    if (!card) return res.status(404).json({ error: "Card not found" });
-
-    await pool.query("delete from cards where id = $1", [req.params.cardId]);
+    if (!rows[0]) return res.status(404).json({ error: "Card not found" });
     res.status(204).end();
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -297,36 +323,42 @@ app.post(
   "/api/decks/:deckId/cards/:cardId/reviews",
   requireAuth,
   async (req, res) => {
+    const { rating } = req.body;
+    if (![1, 2, 3].includes(rating)) {
+      return res.status(400).json({ error: "rating must be 1, 2, or 3" });
+    }
+
     try {
-      const card = await findOwnedCard(
-        req.params.deckId,
-        req.params.cardId,
-        req.user.id
-      );
-      if (!card) return res.status(404).json({ error: "Card not found" });
-
-      const { rating } = req.body;
-      if (![1, 2, 3].includes(rating)) {
-        return res.status(400).json({ error: "rating must be 1, 2, or 3" });
-      }
-
-      const newStrength = Math.max(
-        0,
-        Math.min(
-          1,
-          card.strength +
-            STRENGTH_LEARNING_RATE * (RATING_TARGET[rating] - card.strength)
-        )
-      );
-
-      await pool.query(
-        "insert into reviews (card_id, user_id, rating) values ($1, $2, $3)",
-        [req.params.cardId, req.user.id, rating]
-      );
+      // This is the hottest write in the app — one per card per study session.
+      // Ownership check, review log, and strength update all ride in a single
+      // statement so a review costs one round trip instead of three.
       const { rows } = await pool.query(
-        "update cards set strength = $1, updated_at = now() where id = $2 returning *",
-        [newStrength, req.params.cardId]
+        `with target as (
+           select cards.id, cards.strength from cards
+           join decks on decks.id = cards.deck_id
+           where cards.id = $1 and cards.deck_id = $2 and decks.user_id = $3
+         ),
+         logged as (
+           insert into reviews (card_id, user_id, rating)
+           select id, $3, $4 from target
+         )
+         update cards
+         set strength = least(1, greatest(0,
+               target.strength + $5 * ($6 - target.strength))),
+             updated_at = now()
+         from target
+         where cards.id = target.id
+         returning cards.*`,
+        [
+          req.params.cardId,
+          req.params.deckId,
+          req.user.id,
+          rating,
+          STRENGTH_LEARNING_RATE,
+          RATING_TARGET[rating],
+        ]
       );
+      if (!rows[0]) return res.status(404).json({ error: "Card not found" });
       res.json(rows[0]);
     } catch (e) {
       res.status(500).json({ error: e.message });
@@ -335,7 +367,13 @@ app.post(
 );
 
 // ---- start ----
-const port = process.env.PORT || 3001;
-app.listen(port, () => {
-  console.log(`Cram API listening on ${port}`);
-});
+// On Vercel the platform invokes the exported app directly; the listener is only
+// for `npm run dev` locally.
+if (!process.env.VERCEL) {
+  const port = process.env.PORT || 3001;
+  app.listen(port, () => {
+    console.log(`Cram API listening on ${port}`);
+  });
+}
+
+module.exports = app;

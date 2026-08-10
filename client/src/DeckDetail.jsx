@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
-import { authFetch } from "./api";
+import { authFetch, uploadCardImage } from "./api";
 import ImageDropZone from "./ImageDropZone";
 import StudySession from "./StudySession";
+
+// A newly picked image carries a File that has to reach storage before the card
+// can reference it; one the user left alone is already a public URL.
+async function resolveImage(deckId, image) {
+  if (!image) return null;
+  return image.file ? uploadCardImage(deckId, image.file) : image.url;
+}
+
+function imageChanged(image, savedUrl) {
+  if (!image) return !!savedUrl;
+  return !!image.file || image.url !== savedUrl;
+}
 
 function DeckDetail({ deck, onBack }) {
   const [cards, setCards] = useState([]);
@@ -37,13 +49,17 @@ function DeckDetail({ deck, onBack }) {
       return setError("Each side needs text, an image, or both.");
     }
     try {
+      const [frontImageUrl, backImageUrl] = await Promise.all([
+        resolveImage(deck.id, newCardFrontImage),
+        resolveImage(deck.id, newCardBackImage),
+      ]);
       await authFetch(`/api/decks/${deck.id}/cards`, {
         method: "POST",
         body: JSON.stringify({
           frontText: newCardFront,
           backText: newCardBack,
-          frontImage: newCardFrontImage,
-          backImage: newCardBackImage,
+          frontImageUrl,
+          backImageUrl,
         }),
       });
       setNewCardFront("");
@@ -61,20 +77,23 @@ function DeckDetail({ deck, onBack }) {
     setEditingCardId(card.id);
     setEditFront(card.front_text || "");
     setEditBack(card.back_text || "");
-    setEditFrontImage(card.front_image_url || null);
-    setEditBackImage(card.back_image_url || null);
+    setEditFrontImage(
+      card.front_image_url ? { url: card.front_image_url } : null
+    );
+    setEditBackImage(card.back_image_url ? { url: card.back_image_url } : null);
   }
 
   async function handleSaveCard(card) {
     const body = { frontText: editFront, backText: editBack };
-    if (editFrontImage !== (card.front_image_url || null)) {
-      body.frontImage = editFrontImage;
-    }
-    if (editBackImage !== (card.back_image_url || null)) {
-      body.backImage = editBackImage;
-    }
 
     try {
+      if (imageChanged(editFrontImage, card.front_image_url)) {
+        body.frontImageUrl = await resolveImage(deck.id, editFrontImage);
+      }
+      if (imageChanged(editBackImage, card.back_image_url)) {
+        body.backImageUrl = await resolveImage(deck.id, editBackImage);
+      }
+
       await authFetch(`/api/decks/${deck.id}/cards/${card.id}`, {
         method: "PATCH",
         body: JSON.stringify(body),

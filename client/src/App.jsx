@@ -28,7 +28,7 @@ function App() {
   }, []);
 
   async function handleSignUp() {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({ email, password });
     if (error) return setMessage(error.message);
     setMessage("Signed up! Check your email to confirm, then log in.");
   }
@@ -132,9 +132,6 @@ function App() {
     <div className="auth-page">
       <div className="auth-header">
         <h1>Cram</h1>
-        <p className="auth-free">
-          Free to use. No subscriptions, no payments, no charges of any kind.
-        </p>
       </div>
       <div className="auth-card">
         <label className="auth-field">
