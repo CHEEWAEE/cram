@@ -1,44 +1,28 @@
 # Cram
 
-Flashcards that let you actually cram.
+Cram is a flashcard website that also installs as an app on your phone. Make a deck at your laptop, drill it anywhere.
 
-**Live demo:** coming soon
+Live at https://www.appcram.com
 
-Cram is a flashcard web app built around one idea: the app shouldn't decide when you're done studying. Anki-style tools lock cards away once you've reviewed them, which is exactly what you don't want the night before an exam. Cram tracks how well you know each card and uses that to build smarter sessions, but never stops you from running a deck as many times as you want.
+I'm a uni student, and I noticed the times I actually wanted to review flashcards were never the times I was sat at a desk. It was on the train, in the ten minutes before a tutorial, lying in bed. So I built something that works in those gaps.
 
-Make your decks on a desktop, where typing is fast. Study on your phone, in bed or on the train. Same account, same data, one app.
+## What it does
 
-> 🚧 In development. This README describes the target for v1.
+Decks and cards, with text or an image on either side. Study a deck and rate each card as remembered, unsure, or forgot. Anything you miss comes back a few cards later in the same session, so a session isn't over until everything has stuck.
 
-## Features
+Every card has a strength score between 0 and 1 that your ratings move up and down. It's there to work out what you're bad at, not to ration your studying. I looked at SM-2, the algorithm Anki uses, and didn't want it. It spreads reviews across days and hides cards until they're due, which is the last thing you want the night before an exam.
 
-- Decks and cards with text and images on either side
-- Study sessions: full deck, quick 10, or "weak cards" mode that samples the cards you keep missing
-- Three-button rating (remembered / unsure / forgot). Forgotten cards come back a few cards later in the same session, so you can't finish until everything sticks
-- Per-card strength score that your ratings adjust over time. It powers weak-cards mode but never locks you out
-- Share a deck with a link. Anyone who saves it gets their own independent copy, so they can edit or delete it without touching yours
-- Email sign-in with password reset
-- Installable on your phone as a PWA. Opens full screen from the home screen, no browser bar
-
-## Why it works this way
-
-**No scheduling algorithm telling you what's due.** I looked at SM-2 (the algorithm classic Anki uses) and decided against it. It's built to spread reviews across days, which is great in theory and annoying in practice when you just want to hammer a deck before a test. Instead, every card has a strength value between 0 and 1. Rating a card nudges it up or down, and "weak cards" sessions sample low-strength cards more heavily. You get the benefit of the app knowing what you're bad at, without it rationing your studying.
-
-**Sessions run entirely on the phone.** When a session starts, the cards load once. Flipping, rating, and the queue logic are all local state, and ratings sync back in the background. No network round trip between cards, so it stays fast even on train wifi.
-
-**Sharing means copying.** A share link gives the recipient a full copy of the deck under their own account, with fresh strength values. There's no live link back to the original, which keeps the permissions story trivial: your deck is yours, their copy is theirs.
+Sessions run on the phone. The cards load once when the session starts, then flipping, rating and the queue are all local, and ratings sync in the background. No network round trip between cards, so it holds up on train wifi.
 
 ## Stack
 
-- **Frontend:** React (Vite), deployed on Vercel
-- **Backend:** Node.js + Express REST API, deployed on Render
-- **Database / auth / storage:** Supabase (PostgreSQL, Supabase Auth with JWT verification in the API, Supabase Storage for card images)
+React and Vite on the front. Express on the back. Supabase underneath for Postgres, auth and image storage. Both halves deploy to Vercel.
 
-```
-React (Vercel) → Express API (Render) → Supabase (Postgres + Auth + Storage)
-```
+Auth tokens are signed by Supabase and verified in the API against their public keys. Card images upload straight from the browser to storage using a one shot token from the API, so the file never travels through the server.
 
-## Running locally
+## Running it locally
+
+You need a free Supabase project.
 
 ```bash
 git clone https://github.com/<your-username>/cram.git
@@ -47,25 +31,22 @@ cd cram
 # backend
 cd server
 npm install
-cp .env.example .env   # add your Supabase keys
 npm run dev
 
-# frontend (new terminal)
+# frontend, in another terminal
 cd client
 npm install
 npm run dev
 ```
 
-You'll need a free Supabase project. Put its URL and keys in `server/.env` and `client/.env`.
+`server/.env` needs `DATABASE_URL` (the Supabase transaction pooler connection string), `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
 
-## Roadmap
+`client/.env` needs `VITE_API_URL`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
 
-- [ ] Stats dashboard: streaks, reviews per day, first-attempt accuracy, weakest cards
-- [ ] AI card generation: paste your notes, get draft flashcards
-- [ ] CSV import/export (including Anki decks)
-- [ ] Cloze deletion cards
-- [ ] Keyboard shortcuts in study mode
+You'll also need to create the tables. The schema isn't in this repo yet, which is the next thing I want to fix.
 
-## License
+## Not done yet
 
-MIT
+- Sharing a deck with a link. The plan is that saving a shared deck gives you your own copy, with no live link back to the original
+- Weak cards mode, and a quick ten card session. The strength scores are already being tracked, nothing reads them back yet
+- The database schema, as above
