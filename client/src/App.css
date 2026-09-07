@@ -3,7 +3,7 @@
   top: 16px;
   right: 16px;
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text);
   border-radius: 8px;
   padding: 8px 12px;
@@ -11,6 +11,7 @@
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
 }
 
 .theme-toggle:hover {
@@ -78,7 +79,7 @@
 .auth-card {
   width: 380px;
   max-width: 100%;
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: var(--shadow);
@@ -108,6 +109,7 @@
   background: var(--bg);
   color: var(--text-h);
   outline: none;
+  transition: border-color 120ms ease;
 }
 
 .auth-field input:focus-visible {
@@ -129,6 +131,7 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition: filter 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .auth-button-primary {
@@ -137,10 +140,18 @@
   color: #fff;
 }
 
+.auth-button-primary:hover {
+  filter: brightness(0.94);
+}
+
 .auth-button-secondary {
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text-h);
+}
+
+.auth-button-secondary:hover {
+  border-color: var(--accent-border);
 }
 
 .auth-link {
@@ -152,6 +163,7 @@
   color: var(--text);
   cursor: pointer;
   text-align: center;
+  transition: color 120ms ease;
 }
 
 .auth-link:hover {
@@ -177,6 +189,7 @@
   justify-content: space-between;
   padding: 16px 32px;
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .app-brand {
@@ -246,10 +259,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 4px;
+  transition: border-color 120ms ease;
 }
 
 .deck-row:hover {
@@ -270,7 +284,7 @@
 }
 
 .deck-title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--text-h);
 }
@@ -297,10 +311,12 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
 }
 
 .icon-button:hover {
   color: var(--accent);
+  border-color: var(--accent-border);
 }
 
 .icon-button-danger {
@@ -312,7 +328,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--accent-border);
   border-radius: 12px;
   padding: 16px 20px;
@@ -335,7 +351,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 14px 18px;
@@ -347,7 +363,7 @@
 }
 
 .card-front {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-h);
 }
@@ -367,7 +383,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 24px;
@@ -390,6 +406,8 @@
   cursor: pointer;
   padding: 12px;
   box-sizing: border-box;
+  background: var(--bg);
+  transition: border-color 120ms ease, background 120ms ease;
 }
 
 .image-dropzone-active {
@@ -426,7 +444,7 @@
   top: -8px;
   right: -8px;
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text);
   border-radius: 999px;
   font-size: 11px;
@@ -481,7 +499,7 @@
   width: 100%;
   max-width: 640px;
   margin: 0 auto;
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: var(--shadow);
@@ -537,17 +555,18 @@
   font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
+  transition: filter 120ms ease, border-color 120ms ease;
 }
 
 .study-button-forgot {
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--surface);
   color: #c2410c;
 }
 
 .study-button-unsure {
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text);
 }
 
@@ -555,6 +574,15 @@
   border: none;
   background: var(--accent);
   color: #fff;
+}
+
+.study-button-remembered:hover {
+  filter: brightness(0.94);
+}
+
+.study-button-forgot:hover,
+.study-button-unsure:hover {
+  border-color: var(--accent-border);
 }
 
 .study-complete {
@@ -574,6 +602,7 @@
 .auth-footer a {
   color: var(--text);
   text-decoration: none;
+  transition: color 120ms ease;
 }
 
 .auth-footer a:hover {
@@ -589,47 +618,42 @@
 }
 
 .about-content {
-  width: 640px;
+  width: 620px;
   max-width: 100%;
   text-align: left;
   padding: 48px 0;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 20px;
 }
 
 .about-content h1 {
-  margin: 0;
+  margin: 0 0 4px;
   font-size: 28px;
   letter-spacing: -0.5px;
 }
 
-.about-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.about-section h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-h);
-}
-
-.about-section p {
-  font-size: 14px;
-  line-height: 1.6;
+.about-content p {
+  font-size: 15px;
+  line-height: 1.65;
   color: var(--text);
 }
 
 .about-back {
+  margin-top: 8px;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text);
   text-decoration: none;
+  transition: color 120ms ease;
 }
 
 .about-back:hover {
   color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
 }
