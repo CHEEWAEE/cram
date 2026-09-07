@@ -25,7 +25,7 @@ Auth tokens are signed by Supabase and verified in the API against their public 
 You need a free Supabase project.
 
 ```bash
-git clone https://github.com/<your-username>/cram.git
+git clone https://github.com/CHEEWAEE/cram.git
 cd cram
 
 # backend
