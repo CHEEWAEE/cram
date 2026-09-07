@@ -9,22 +9,22 @@ function About() {
         <div className="about-content">
           <h1>About Cram</h1>
 
-          <section className="about-section">
-            <h2>What Cram is</h2>
-            <p>
-              Cram is a simple flashcard study app that works on both phones and
-              desktops. The idea is to make it easy to drill constantly —
-              on a commute, or in bed instead of doomscrolling.
-            </p>
-          </section>
+          <p>
+            Cram is a flashcard website that also installs as an app on your
+            phone. Make a deck at your laptop, drill it anywhere.
+          </p>
 
-          <section className="about-section">
-            <h2>Who made it</h2>
-            <p>
-              Built by a third-year software engineering student as a project to
-              practise full stack development.
-            </p>
-          </section>
+          <p>
+            I'm a uni student, and I noticed the times I actually wanted to
+            review flashcards were never the times I was sat at a desk. It was
+            on the train, in the ten minutes before a tutorial, lying in bed. So
+            I built something that works in those gaps.
+          </p>
+
+          <p>
+            Cram is a single-page React app talking to an Express API, with
+            Postgres underneath.
+          </p>
 
           <a className="about-back" href="/">
             Back to Cram
