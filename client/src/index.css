@@ -1,16 +1,19 @@
+/* Warm paper and marker orange. The rating colours (--bad, --meh, --good) are
+   separate from the brand accent so "Remembered" never reads as a primary button. */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #f7f7f8;
-  --surface: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
+  --text: #6b645a;
+  --text-h: #1c1915;
+  --bg: #f4f1ea;
+  --surface: #fffdf9;
+  --border: #e3ddd1;
+  --accent: #d9480f;
+  --accent-bg: rgba(217, 72, 15, 0.09);
+  --accent-border: rgba(217, 72, 15, 0.45);
+  --bad: #c92a4a;
+  --meh: #b7791f;
+  --good: #1f8a5b;
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+    rgba(60, 40, 20, 0.1) 0 10px 15px -3px, rgba(60, 40, 20, 0.05) 0 4px 6px -2px;
 
   --sans: 'Schibsted Grotesk', system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: 'Schibsted Grotesk', system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -33,57 +36,61 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --surface: #1c1d24;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
+    --text: #a59e92;
+    --text-h: #f3eee5;
+    --bg: #141311;
+    --surface: #1d1b18;
+    --border: #302c26;
+    --accent: #ff7f41;
+    --accent-bg: rgba(255, 127, 65, 0.13);
+    --accent-border: rgba(255, 127, 65, 0.5);
+    --bad: #f0607c;
+    --meh: #e3a948;
+    --good: #45c08a;
     --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+      rgba(0, 0, 0, 0.45) 0 10px 15px -3px, rgba(0, 0, 0, 0.3) 0 4px 6px -2px;
   }
 }
 
 :root[data-theme="light"] {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #f7f7f8;
-  --surface: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
+  --text: #6b645a;
+  --text-h: #1c1915;
+  --bg: #f4f1ea;
+  --surface: #fffdf9;
+  --border: #e3ddd1;
+  --accent: #d9480f;
+  --accent-bg: rgba(217, 72, 15, 0.09);
+  --accent-border: rgba(217, 72, 15, 0.45);
+  --bad: #c92a4a;
+  --meh: #b7791f;
+  --good: #1f8a5b;
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+    rgba(60, 40, 20, 0.1) 0 10px 15px -3px, rgba(60, 40, 20, 0.05) 0 4px 6px -2px;
 }
 
 :root[data-theme="dark"] {
-  --text: #9ca3af;
-  --text-h: #f3f4f6;
-  --bg: #16171d;
-  --surface: #1c1d24;
-  --border: #2e303a;
-  --code-bg: #1f2028;
-  --accent: #c084fc;
-  --accent-bg: rgba(192, 132, 252, 0.15);
-  --accent-border: rgba(192, 132, 252, 0.5);
-  --social-bg: rgba(47, 48, 58, 0.5);
+  --text: #a59e92;
+  --text-h: #f3eee5;
+  --bg: #141311;
+  --surface: #1d1b18;
+  --border: #302c26;
+  --accent: #ff7f41;
+  --accent-bg: rgba(255, 127, 65, 0.13);
+  --accent-border: rgba(255, 127, 65, 0.5);
+  --bad: #f0607c;
+  --meh: #e3a948;
+  --good: #45c08a;
   --shadow:
-    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+    rgba(0, 0, 0, 0.45) 0 10px 15px -3px, rgba(0, 0, 0, 0.3) 0 4px 6px -2px;
 }
 
+/* A faint dot grid, like the paper in a squared notebook. */
 body {
   margin: 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--border) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  background-attachment: fixed;
 }
 
 #root {
@@ -125,19 +132,4 @@ h2 {
 }
 p {
   margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
 }
