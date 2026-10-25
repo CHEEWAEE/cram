@@ -86,10 +86,11 @@ app.post("/api/decks", requireAuth, async (req, res) => {
   }
 });
 
-// RLS is off, so every deck/card route has to prove ownership itself. Rather than
-// doing that as a separate SELECT — which costs a full round trip to the database
-// before the real work starts — each statement below folds `user_id = $n` into its
-// own WHERE clause and treats "no rows affected" as a 404.
+// The API connects as the table owner, which bypasses RLS, so every deck/card
+// route has to prove ownership itself. Rather than doing that as a separate
+// SELECT — which costs a full round trip to the database before the real work
+// starts — each statement below folds `user_id = $n` into its own WHERE clause
+// and treats "no rows affected" as a 404.
 app.patch("/api/decks/:deckId", requireAuth, async (req, res) => {
   const { title, description } = req.body;
   if (!title || !title.trim()) {

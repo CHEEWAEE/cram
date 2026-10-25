@@ -1,7 +1,9 @@
 -- Cram database schema. Run this once in the Supabase SQL editor on a fresh project.
 --
--- RLS stays off on these tables: the browser never talks to them directly. Every
--- read and write goes through the Express API, which checks ownership itself.
+-- RLS is on with no policies, so the public anon key can't touch these tables.
+-- The browser never needs to: every read and write goes through the Express API,
+-- which connects as the table owner (postgres, which bypasses RLS) and checks
+-- ownership itself.
 
 create table decks (
   id uuid primary key default gen_random_uuid(),
@@ -39,6 +41,10 @@ create table reviews (
 );
 
 create index reviews_card_id_idx on reviews (card_id);
+
+alter table decks enable row level security;
+alter table cards enable row level security;
+alter table reviews enable row level security;
 
 -- Card images: a public bucket. Uploads go through one-shot signed URLs minted
 -- by the API, so no storage policies are needed for inserts.
