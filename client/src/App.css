@@ -1052,34 +1052,6 @@
   line-height: 1;
 }
 
-.landing-title::after {
-  content: ".";
-  color: var(--accent);
-}
-
-.landing-pitch {
-  font-size: 22px;
-  line-height: 1.35;
-  color: var(--text-h);
-  max-width: 420px;
-}
-
-.landing-points {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-}
-
-.landing-points li::before {
-  content: "→ ";
-  color: var(--accent);
-  font-weight: 700;
-}
-
 .demo-stack {
   position: relative;
   width: 280px;
@@ -1172,13 +1144,6 @@
     font-size: 48px;
   }
 
-  .landing-pitch {
-    font-size: 18px;
-  }
-
-  .landing-points {
-    align-items: center;
-  }
 
   .demo-stack {
     width: 240px;

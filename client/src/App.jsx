@@ -157,14 +157,6 @@ function App() {
       <div className="landing-main">
         <div className="landing-hero">
           <h1 className="landing-title">Cram</h1>
-          <p className="landing-pitch">
-            Flashcards for the train, the queue, and the ten minutes before class.
-          </p>
-          <ul className="landing-points">
-            <li>Make decks on your laptop, drill them on your phone</li>
-            <li>Missed cards come back until they stick</li>
-            <li>Free. No ads, no paid tier</li>
-          </ul>
           <DemoStack />
         </div>
         <form
