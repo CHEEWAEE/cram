@@ -11,14 +11,14 @@ function About() {
 
           <p>
             Cram is a flashcard website that also installs as an app on your
-            phone. Make a deck at your laptop, drill it anywhere.
+            phone.
           </p>
 
           <p>
             I'm a uni student, and I noticed the times I actually wanted to
-            review flashcards were never the times I was sat at a desk. It was
-            on the train, in the ten minutes before a tutorial, lying in bed. So
-            I built something that works in those gaps.
+            review flashcards were never the times I was sat at a desk, so I
+            wanted to make something that was a little easier to use during
+            less convenient moments.
           </p>
 
           <p>
