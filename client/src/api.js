@@ -34,3 +34,15 @@ export async function uploadCardImage(deckId, file) {
 
   return publicUrl;
 }
+
+// Holds a share token across the login round trip (and the email confirmation, which may open in a new tab) when a logged-out visitor
+// asks to save a shared deck.
+export const PENDING_SHARE_KEY = "cram.pendingShare";
+
+// The public share preview needs no login, so it skips authFetch.
+export async function fetchSharedDeck(token) {
+  const res = await fetch(`${API_BASE}/api/shared/${encodeURIComponent(token)}`);
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(body?.error || `Request failed (${res.status})`);
+  return body;
+}
