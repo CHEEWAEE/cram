@@ -3,7 +3,29 @@ import { supabase } from "./supabase";
 import ThemeToggle from "./ThemeToggle";
 import InstallPrompt from "./InstallPrompt";
 import Decks from "./Decks";
+import { PENDING_SHARE_KEY } from "./api";
 import "./App.css";
+
+// The little stack of cards beside the login form. The top card flips on a loop
+// in CSS; the two behind it are just paper.
+function DemoStack() {
+  return (
+    <div className="demo-stack" aria-hidden="true">
+      <div className="demo-card demo-card-back2" />
+      <div className="demo-card demo-card-back1" />
+      <div className="demo-card demo-card-top">
+        <div className="demo-face demo-face-front">
+          <span className="study-card-label">Question</span>
+          <span className="demo-text">Half-life of caffeine?</span>
+        </div>
+        <div className="demo-face demo-face-back">
+          <span className="study-card-label">Answer</span>
+          <span className="demo-text">About 5 hours</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const [email, setEmail] = useState("");
@@ -125,45 +147,67 @@ function App() {
     );
   }
 
+  const savingShare = !!localStorage.getItem(PENDING_SHARE_KEY);
+
   return (
     <>
     <ThemeToggle />
     <InstallPrompt />
-    <div className="auth-page">
-      <div className="auth-header">
-        <h1>Cram</h1>
-      </div>
-      <div className="auth-card">
-        <label className="auth-field">
-          Email
-          <input
-            type="email"
-            placeholder="you@school.edu"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
-        <label className="auth-field">
-          Password
-          <input
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-        <div className="auth-actions">
-          <button className="auth-button auth-button-secondary" onClick={handleSignUp}>
-            Sign up
-          </button>
-          <button className="auth-button auth-button-primary" onClick={handleLogin}>
-            Log in
-          </button>
+    <div className="auth-page landing">
+      <div className="landing-main">
+        <div className="landing-hero">
+          <h1 className="landing-title">Cram</h1>
+          <p className="landing-pitch">
+            Flashcards for the train, the queue, and the ten minutes before class.
+          </p>
+          <ul className="landing-points">
+            <li>Make decks on your laptop, drill them on your phone</li>
+            <li>Missed cards come back until they stick</li>
+            <li>Free. No ads, no paid tier</li>
+          </ul>
+          <DemoStack />
         </div>
-        <button className="auth-link" onClick={handleForgotPassword}>
-          Forgot password?
-        </button>
-        <p className="auth-message">{message}</p>
+        <form
+          className="auth-card"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleLogin();
+          }}
+        >
+          {savingShare && (
+            <p className="notice">Log in or sign up to save the shared deck.</p>
+          )}
+          <label className="auth-field">
+            Email
+            <input
+              type="email"
+              placeholder="you@school.edu"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+          <label className="auth-field">
+            Password
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <div className="auth-actions">
+            <button type="button" className="auth-button auth-button-secondary" onClick={handleSignUp}>
+              Sign up
+            </button>
+            <button type="submit" className="auth-button auth-button-primary">
+              Log in
+            </button>
+          </div>
+          <button type="button" className="auth-link" onClick={handleForgotPassword}>
+            Forgot password?
+          </button>
+          <p className="auth-message">{message}</p>
+        </form>
       </div>
       <footer className="auth-footer">
         <a href="/about">About Cram</a>

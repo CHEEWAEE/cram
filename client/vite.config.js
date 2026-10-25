@@ -15,8 +15,8 @@ export default defineConfig({
         description: 'Flashcards that let you actually cram.',
         start_url: '/',
         display: 'standalone',
-        background_color: '#fcfcfd',
-        theme_color: '#aa3bff',
+        background_color: '#f4f1ea',
+        theme_color: '#d9480f',
         icons: [
           { src: '/pwa-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },

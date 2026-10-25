@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { authFetch } from "./api";
+import { authFetch, PENDING_SHARE_KEY } from "./api";
 import DeckDetail from "./DeckDetail";
+import StrengthBar from "./StrengthBar";
 
 function Decks() {
   const [decks, setDecks] = useState([]);
@@ -11,9 +12,21 @@ function Decks() {
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    loadDecks();
+    // Someone who opened a share link while logged out lands here after
+    // logging in; finish saving the deck they asked for.
+    const pending = localStorage.getItem(PENDING_SHARE_KEY);
+    if (pending) {
+      localStorage.removeItem(PENDING_SHARE_KEY);
+      authFetch(`/api/shared/${pending}/copy`, { method: "POST" })
+        .then((deck) => setNotice(`Saved "${deck.title}" to your decks.`))
+        .catch((e) => setError(e.message))
+        .finally(loadDecks);
+    } else {
+      loadDecks();
+    }
   }, []);
 
   async function loadDecks() {
@@ -79,13 +92,20 @@ function Decks() {
 
   if (selectedDeck) {
     return (
-      <DeckDetail deck={selectedDeck} onBack={() => setSelectedDeck(null)} />
+      <DeckDetail
+        deck={selectedDeck}
+        onBack={() => {
+          setSelectedDeck(null);
+          loadDecks();
+        }}
+      />
     );
   }
 
   return (
     <div className="decks-page">
       <h2>Your decks</h2>
+      {notice && <p className="notice">{notice}</p>}
 
       <div className="deck-list">
         {decks.map((deck) =>
@@ -126,6 +146,10 @@ function Decks() {
                 {deck.description && (
                   <span className="deck-description">{deck.description}</span>
                 )}
+                <span className="deck-meta">
+                  {deck.card_count ?? 0} card{deck.card_count === 1 ? "" : "s"}
+                  {deck.card_count > 0 && <StrengthBar value={deck.avg_strength} />}
+                </span>
               </button>
               <div className="row-actions">
                 <button className="icon-button" onClick={() => startEditDeck(deck)}>
