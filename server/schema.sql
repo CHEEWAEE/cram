@@ -1,9 +1,5 @@
 -- Cram database schema. Run this once in the Supabase SQL editor on a fresh project.
 --
--- Rebuilt from the queries in server/index.js rather than dumped from the live
--- database, so check it against the real tables before trusting it for anything
--- other than a new project.
---
 -- RLS stays off on these tables: the browser never talks to them directly. Every
 -- read and write goes through the Express API, which checks ownership itself.
 
@@ -12,7 +8,7 @@ create table decks (
   user_id uuid not null references auth.users (id) on delete cascade,
   title text not null,
   description text,
-  share_token text unique,
+  share_token uuid unique,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -27,7 +23,7 @@ create table cards (
   front_image_url text,
   back_image_url text,
   -- 0 to 1, nudged toward 0 / 0.5 / 1 by each first rating in a session.
-  strength real not null default 0,
+  strength real not null default 0.5,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -38,7 +34,7 @@ create table reviews (
   id bigint generated always as identity primary key,
   card_id uuid not null references cards (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
-  rating smallint not null check (rating between 1 and 3),
+  rating smallint not null check (rating in (1, 2, 3)),
   created_at timestamptz not null default now()
 );
 
