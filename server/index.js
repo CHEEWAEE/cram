@@ -50,8 +50,17 @@ app.get("/api/me", requireAuth, (req, res) => {
 
 app.get("/api/decks", requireAuth, async (req, res) => {
   try {
+    // Card count and average strength ride along so the deck list can show how
+    // big each deck is and how well it's known without a request per deck.
     const { rows } = await pool.query(
-      "select * from decks where user_id = $1 order by created_at desc",
+      `select decks.*,
+              count(cards.id)::int as card_count,
+              avg(cards.strength)::float as avg_strength
+       from decks
+       left join cards on cards.deck_id = decks.id
+       where decks.user_id = $1
+       group by decks.id
+       order by decks.created_at desc`,
       [req.user.id]
     );
     res.json(rows);
@@ -365,6 +374,104 @@ app.post(
     }
   }
 );
+
+// ---- sharing ----
+// A shared deck is reachable by anyone holding its random token. Saving one makes
+// an independent copy in the saver's account: no live link back, fresh strength
+// scores, and the original owner can stop sharing without touching the copies.
+
+app.post("/api/decks/:deckId/share", requireAuth, async (req, res) => {
+  try {
+    const token = crypto.randomBytes(9).toString("base64url");
+    // coalesce keeps an existing token, so sharing twice gives the same link.
+    const { rows } = await pool.query(
+      `update decks set share_token = coalesce(share_token, $1)
+       where id = $2 and user_id = $3 returning share_token`,
+      [token, req.params.deckId, req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Deck not found" });
+    res.json({ shareToken: rows[0].share_token });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete("/api/decks/:deckId/share", requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `update decks set share_token = null
+       where id = $1 and user_id = $2 returning id`,
+      [req.params.deckId, req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Deck not found" });
+    res.status(204).end();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Public: no auth, and only the card content goes out, never ids or owner.
+app.get("/api/shared/:token", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `select decks.title, decks.description,
+              cards.front_text, cards.back_text,
+              cards.front_image_url, cards.back_image_url
+       from decks
+       left join cards on cards.deck_id = decks.id
+       where decks.share_token = $1
+       order by cards.created_at asc`,
+      [req.params.token]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "This share link doesn't exist any more" });
+    }
+    const { title, description } = rows[0];
+    const cards = rows
+      .filter((r) => r.front_text || r.back_text || r.front_image_url || r.back_image_url)
+      .map(({ title, description, ...card }) => card);
+    res.json({ title, description, cards });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/shared/:token/copy", requireAuth, async (req, res) => {
+  try {
+    // One statement: new deck, then its cards. Images aren't duplicated; the copy
+    // points at the same files in storage, which are never deleted with a card.
+    // created_at is staggered by row so the copy keeps the original card order.
+    const { rows } = await pool.query(
+      `with src as (
+         select id, title, description from decks where share_token = $1
+       ),
+       new_deck as (
+         insert into decks (user_id, title, description)
+         select $2, title, description from src
+         returning *
+       ),
+       copied as (
+         insert into cards (deck_id, front_text, back_text,
+                            front_image_url, back_image_url, created_at)
+         select new_deck.id, c.front_text, c.back_text,
+                c.front_image_url, c.back_image_url,
+                now() + row_number() over (order by c.created_at) * interval '1 millisecond'
+         from new_deck, src
+         join cards c on c.deck_id = src.id
+         returning id
+       )
+       select new_deck.*, (select count(*) from copied)::int as card_count
+       from new_deck`,
+      [req.params.token, req.user.id]
+    );
+    if (!rows[0]) {
+      return res.status(404).json({ error: "This share link doesn't exist any more" });
+    }
+    res.status(201).json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ---- start ----
 // On Vercel the platform invokes the exported app directly; the listener is only
