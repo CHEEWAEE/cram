@@ -49,13 +49,25 @@ function App() {
     return () => subscription.subscription.unsubscribe();
   }, []);
 
+  // Supabase reads an empty email as a request for an anonymous account and
+  // answers "Anonymous sign-ins are disabled", so catch blanks here first.
+  function missingCredentials() {
+    if (!email.trim() || !password) {
+      setMessage("Enter your email and password.");
+      return true;
+    }
+    return false;
+  }
+
   async function handleSignUp() {
+    if (missingCredentials()) return;
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) return setMessage(error.message);
     setMessage("Signed up! Check your email to confirm, then log in.");
   }
 
   async function handleLogin() {
+    if (missingCredentials()) return;
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
