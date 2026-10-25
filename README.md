@@ -45,4 +45,4 @@ npm run dev
 
 `client/.env` needs `VITE_API_URL`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
 
-Create the tables by running `server/schema.sql` in the Supabase SQL editor. On a database that predates share links, run `server/migrations/001_deck_share_token.sql` instead.
+Create the tables by running `server/schema.sql` in the Supabase SQL editor.

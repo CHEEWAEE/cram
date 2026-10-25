@@ -382,7 +382,7 @@ app.post(
 
 app.post("/api/decks/:deckId/share", requireAuth, async (req, res) => {
   try {
-    const token = crypto.randomBytes(9).toString("base64url");
+    const token = crypto.randomUUID(); // share_token is a uuid column
     // coalesce keeps an existing token, so sharing twice gives the same link.
     const { rows } = await pool.query(
       `update decks set share_token = coalesce(share_token, $1)
@@ -411,7 +411,17 @@ app.delete("/api/decks/:deckId/share", requireAuth, async (req, res) => {
 });
 
 // Public: no auth, and only the card content goes out, never ids or owner.
-app.get("/api/shared/:token", async (req, res) => {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// share_token is a uuid column, so anything else would make Postgres throw.
+function requireShareToken(req, res, next) {
+  if (!UUID_RE.test(req.params.token)) {
+    return res.status(404).json({ error: "This share link doesn't exist any more" });
+  }
+  next();
+}
+
+app.get("/api/shared/:token", requireShareToken, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `select decks.title, decks.description,
@@ -436,7 +446,7 @@ app.get("/api/shared/:token", async (req, res) => {
   }
 });
 
-app.post("/api/shared/:token/copy", requireAuth, async (req, res) => {
+app.post("/api/shared/:token/copy", requireShareToken, requireAuth, async (req, res) => {
   try {
     // One statement: new deck, then its cards. Images aren't duplicated; the copy
     // points at the same files in storage, which are never deleted with a card.
