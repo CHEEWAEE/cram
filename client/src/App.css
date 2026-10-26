@@ -363,12 +363,14 @@
 }
 
 .card-front {
+  white-space: pre-wrap;
   font-size: 15px;
   font-weight: 600;
   color: var(--text-h);
 }
 
 .card-back {
+  white-space: pre-wrap;
   font-size: 13px;
   color: var(--text);
 }
@@ -390,66 +392,115 @@
   box-sizing: border-box;
 }
 
-.card-images {
-  display: flex;
+.card-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
-.image-dropzone {
-  flex: 1;
-  min-height: 90px;
+@media (max-width: 560px) {
+  .card-sides {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* One box per card side: text and an optional image live together, and the
+   whole box accepts a pasted or dropped image. */
+.side-field {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  cursor: pointer;
-  padding: 12px;
-  box-sizing: border-box;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 150px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
   background: var(--bg);
+  text-align: left;
   transition: border-color 120ms ease, background 120ms ease;
 }
 
-.image-dropzone-active {
+.side-field:focus-within {
+  border-color: var(--accent-border);
+}
+
+.side-field-drag {
   border-color: var(--accent);
+  border-style: dashed;
   background: var(--accent-bg);
 }
 
-.image-dropzone-input {
-  display: none;
-}
-
-.image-dropzone-label {
-  font-size: 12.5px;
-  color: var(--text);
-  text-align: center;
-}
-
-.image-dropzone-preview {
-  position: relative;
-  width: 100%;
+.side-field-head {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.image-dropzone-preview img {
-  max-width: 100%;
-  max-height: 100px;
-  object-fit: contain;
-  border-radius: 6px;
-}
-
-.image-dropzone-remove {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 999px;
+.side-field-label {
   font-size: 11px;
-  padding: 2px 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.side-field-upload {
+  border: none;
+  background: none;
+  padding: 2px 0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
   cursor: pointer;
+}
+
+.side-field-upload:hover {
+  text-decoration: underline;
+}
+
+.side-field-image {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.side-field-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 160px;
+  border-radius: 8px;
+}
+
+.side-field-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.side-field-text {
+  flex: 1;
+  width: 100%;
+  min-height: 48px;
+  field-sizing: content;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text-h);
 }
 
 .card-thumb {
@@ -580,6 +631,7 @@
   line-height: 1.4;
   color: var(--text-h);
   font-weight: 500;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 

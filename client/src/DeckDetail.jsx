@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { authFetch, uploadCardImage } from "./api";
-import ImageDropZone from "./ImageDropZone";
+import CardSideField from "./CardSideField";
 import StudySession from "./StudySession";
 import StrengthBar from "./StrengthBar";
 import { flushReviews } from "./reviewSync";
@@ -267,30 +267,20 @@ function DeckDetail({ deck, onBack }) {
         {cards.map((card) =>
           editingCardId === card.id ? (
             <div className="card-row-editing" key={card.id}>
-              <label className="auth-field">
-                Front
-                <input
-                  value={editFront}
-                  onChange={(e) => setEditFront(e.target.value)}
+              <div className="card-sides">
+                <CardSideField
+                  label="Front"
+                  text={editFront}
+                  onTextChange={setEditFront}
+                  image={editFrontImage}
+                  onImageChange={setEditFrontImage}
                 />
-              </label>
-              <label className="auth-field">
-                Back
-                <input
-                  value={editBack}
-                  onChange={(e) => setEditBack(e.target.value)}
-                />
-              </label>
-              <div className="card-images">
-                <ImageDropZone
-                  label="Front image"
-                  value={editFrontImage}
-                  onChange={setEditFrontImage}
-                />
-                <ImageDropZone
-                  label="Back image"
-                  value={editBackImage}
-                  onChange={setEditBackImage}
+                <CardSideField
+                  label="Back"
+                  text={editBack}
+                  onTextChange={setEditBack}
+                  image={editBackImage}
+                  onImageChange={setEditBackImage}
                 />
               </div>
               <div className="row-actions">
@@ -333,38 +323,25 @@ function DeckDetail({ deck, onBack }) {
             </div>
           )
         )}
-        {cards.length === 0 && (
-          <p className="deck-empty">No cards yet — add the first one below.</p>
-        )}
       </div>
 
       <div className="create-card-form">
-        <label className="auth-field">
-          Front
-          <input
-            value={newCardFront}
-            onChange={(e) => setNewCardFront(e.target.value)}
-            placeholder="Question"
+        <div className="card-sides">
+          <CardSideField
+            label="Front"
+            text={newCardFront}
+            onTextChange={setNewCardFront}
+            image={newCardFrontImage}
+            onImageChange={setNewCardFrontImage}
+            placeholder="Type, or paste an image"
           />
-        </label>
-        <label className="auth-field">
-          Back
-          <input
-            value={newCardBack}
-            onChange={(e) => setNewCardBack(e.target.value)}
-            placeholder="Answer"
-          />
-        </label>
-        <div className="card-images">
-          <ImageDropZone
-            label="Drop, paste, or click to add a front image"
-            value={newCardFrontImage}
-            onChange={setNewCardFrontImage}
-          />
-          <ImageDropZone
-            label="Drop, paste, or click to add a back image"
-            value={newCardBackImage}
-            onChange={setNewCardBackImage}
+          <CardSideField
+            label="Back"
+            text={newCardBack}
+            onTextChange={setNewCardBack}
+            image={newCardBackImage}
+            onImageChange={setNewCardBackImage}
+            placeholder="Type, or paste an image"
           />
         </div>
         <button
