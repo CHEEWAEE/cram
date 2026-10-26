@@ -1,7 +1,30 @@
 import { useEffect, useState } from "react";
-import { authFetch, PENDING_SHARE_KEY } from "./api";
+import { authFetch, cachedGet, PENDING_SHARE_KEY } from "./api";
 import DeckDetail from "./DeckDetail";
 import StrengthBar from "./StrengthBar";
+
+const SORT_KEY = "cram.deckSort";
+const SORTS = {
+  newest: { label: "Newest", compare: () => 0 }, // the API already returns newest first
+  az: { label: "A–Z", compare: (a, b) => a.title.localeCompare(b.title) },
+  weakest: {
+    label: "Weakest first",
+    // Empty decks have no strength to speak of, so they sink to the bottom.
+    compare: (a, b) => (a.avg_strength ?? 2) - (b.avg_strength ?? 2),
+  },
+  biggest: { label: "Most cards", compare: (a, b) => (b.card_count ?? 0) - (a.card_count ?? 0) },
+};
+// Search and sort only earn their space once there are a few decks.
+const TOOLS_FROM = 4;
+
+function loadSortPref() {
+  try {
+    const saved = localStorage.getItem(SORT_KEY);
+    return SORTS[saved] ? saved : "newest";
+  } catch {
+    return "newest";
+  }
+}
 
 function Decks() {
   const [decks, setDecks] = useState([]);
@@ -13,6 +36,9 @@ function Decks() {
   const [editDescription, setEditDescription] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [offline, setOffline] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState(loadSortPref);
 
   useEffect(() => {
     // Someone who opened a share link while logged out lands here after
@@ -31,9 +57,20 @@ function Decks() {
 
   async function loadDecks() {
     try {
-      setDecks(await authFetch("/api/decks"));
+      const { data, offline: fromCache } = await cachedGet("/api/decks");
+      setDecks(data);
+      setOffline(fromCache);
     } catch (e) {
       setError(e.message);
+    }
+  }
+
+  function changeSort(next) {
+    setSort(next);
+    try {
+      localStorage.setItem(SORT_KEY, next);
+    } catch {
+      // still sorts for this visit
     }
   }
 
@@ -102,13 +139,53 @@ function Decks() {
     );
   }
 
+  const needle = query.trim().toLowerCase();
+  const shownDecks = decks
+    .filter(
+      (d) =>
+        !needle ||
+        d.title.toLowerCase().includes(needle) ||
+        (d.description || "").toLowerCase().includes(needle)
+    )
+    .sort(SORTS[sort].compare);
+
   return (
     <div className="decks-page">
       <h2>Your decks</h2>
       {notice && <p className="notice">{notice}</p>}
+      {offline && (
+        <p className="notice">
+          You're offline. These are the decks saved on this device.
+        </p>
+      )}
+
+      {decks.length >= TOOLS_FROM && (
+        <div className="deck-tools">
+          <input
+            className="deck-search"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search decks"
+            aria-label="Search decks"
+          />
+          <select
+            className="deck-sort"
+            value={sort}
+            onChange={(e) => changeSort(e.target.value)}
+            aria-label="Sort decks"
+          >
+            {Object.entries(SORTS).map(([key, { label }]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="deck-list">
-        {decks.map((deck) =>
+        {shownDecks.map((deck) =>
           editingDeckId === deck.id ? (
             <div className="deck-row-editing" key={deck.id}>
               <input
@@ -165,8 +242,8 @@ function Decks() {
             </div>
           )
         )}
-        {decks.length === 0 && (
-          <p className="deck-empty">No decks yet — create your first one below.</p>
+        {decks.length > 0 && shownDecks.length === 0 && (
+          <p className="deck-empty">No decks match "{query.trim()}".</p>
         )}
       </div>
 

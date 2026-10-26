@@ -8,7 +8,17 @@ const { supabase } = require("./supabase");
 
 const app = express();
 
-app.use(cors()); // allow all origins for now; we'll lock this to the Vercel domain at deploy time
+// Only Cram's own pages may call the API from a browser. ALLOWED_ORIGINS
+// (comma-separated) overrides the list, e.g. to let a Vercel preview through.
+const ALLOWED_ORIGINS = (
+  process.env.ALLOWED_ORIGINS ||
+  "https://www.appcram.com,https://appcram.com,http://localhost:5173"
+)
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(cors({ origin: ALLOWED_ORIGINS }));
 app.use(express.json({ limit: "1mb" })); // card images upload straight to storage, so bodies stay small
 
 // Supabase signs auth tokens with project-specific asymmetric keys (ES256),
@@ -244,6 +254,48 @@ app.post("/api/decks/:deckId/cards", requireAuth, async (req, res) => {
     res.status(201).json(rows[0]);
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// Bulk import: text-only cards from a pasted list. One INSERT for the lot, with
+// the ownership check folded in like the single-card route above.
+const MAX_IMPORT = 1000;
+
+app.post("/api/decks/:deckId/cards/bulk", requireAuth, async (req, res) => {
+  const { cards } = req.body;
+  if (!Array.isArray(cards) || cards.length === 0) {
+    return res.status(400).json({ error: "cards must be a non-empty list" });
+  }
+  if (cards.length > MAX_IMPORT) {
+    return res.status(400).json({ error: `Import at most ${MAX_IMPORT} cards at a time` });
+  }
+
+  const fronts = [];
+  const backs = [];
+  for (const card of cards) {
+    const front = typeof card?.frontText === "string" ? card.frontText.trim() : "";
+    const back = typeof card?.backText === "string" ? card.backText.trim() : "";
+    if (!front || !back) {
+      return res.status(400).json({ error: "Every card needs a front and a back" });
+    }
+    fronts.push(front);
+    backs.push(back);
+  }
+
+  try {
+    // created_at is staggered by position so the deck keeps the pasted order.
+    const { rows } = await pool.query(
+      `insert into cards (deck_id, front_text, back_text, created_at)
+       select $1, f, b, now() + n * interval '1 millisecond'
+       from unnest($2::text[], $3::text[]) with ordinality as t(f, b, n)
+       where exists (select 1 from decks where id = $1 and user_id = $4)
+       returning id`,
+      [req.params.deckId, fronts, backs, req.user.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "Deck not found" });
+    res.status(201).json({ imported: rows.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
