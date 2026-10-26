@@ -1257,3 +1257,164 @@
     min-height: 300px;
   }
 }
+
+/* ---- deck list tools ---- */
+.deck-tools {
+  display: flex;
+  gap: 8px;
+}
+
+.deck-search,
+.deck-sort {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-h);
+}
+
+.deck-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.deck-search:focus-visible,
+.deck-sort:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---- import ---- */
+.import-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--accent-border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  text-align: left;
+}
+
+.import-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.import-help {
+  margin: 0;
+}
+
+.import-text {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-h);
+  resize: vertical;
+}
+
+.import-text:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.import-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.reverse-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  font-size: 13px;
+  color: var(--text-h);
+  cursor: pointer;
+  margin-top: -12px;
+}
+
+.reverse-toggle input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+/* ---- edit from inside a study session ---- */
+.study-card-edit {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.study-card-edit:hover {
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+/* ---- after sign-up ---- */
+.check-email {
+  align-items: center;
+  text-align: center;
+}
+
+.check-email h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.check-email-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 24px;
+}
+
+.check-email-text {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.check-email-text strong {
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.check-email .auth-actions {
+  width: 100%;
+}

@@ -1,55 +1,34 @@
 import { useEffect, useState } from "react";
-import { authFetch, uploadCardImage } from "./api";
+import { authFetch, cachedGet, resolveImage } from "./api";
 import CardSideField from "./CardSideField";
+import CardEditForm from "./CardEditForm";
+import ImportCards from "./ImportCards";
 import StudySession from "./StudySession";
 import StrengthBar from "./StrengthBar";
 import { flushReviews } from "./reviewSync";
+import { QUICK_SESSION_SIZE, quickCards, swapSides, weakCards } from "./cards";
 
-const QUICK_SESSION_SIZE = 10;
-// Weak cards mode: the weakest cards below this strength, capped so a session
-// stays short enough to finish.
-const WEAK_THRESHOLD = 0.6;
-const WEAK_SESSION_MAX = 20;
+const REVERSE_KEY = "cram.reverse";
 
-function weakCards(cards) {
-  return cards
-    .filter((c) => (c.strength ?? 0) < WEAK_THRESHOLD)
-    .sort((a, b) => (a.strength ?? 0) - (b.strength ?? 0))
-    .slice(0, WEAK_SESSION_MAX);
-}
-
-function quickCards(cards) {
-  const copy = [...cards];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
+function loadReversePref() {
+  try {
+    return localStorage.getItem(REVERSE_KEY) === "1";
+  } catch {
+    return false;
   }
-  return copy.slice(0, QUICK_SESSION_SIZE);
-}
-
-// A newly picked image carries a File that has to reach storage before the card
-// can reference it; one the user left alone is already a public URL.
-async function resolveImage(deckId, image) {
-  if (!image) return null;
-  return image.file ? uploadCardImage(deckId, image.file) : image.url;
-}
-
-function imageChanged(image, savedUrl) {
-  if (!image) return !!savedUrl;
-  return !!image.file || image.url !== savedUrl;
 }
 
 function DeckDetail({ deck, onBack }) {
   const [cards, setCards] = useState([]);
+  const [offline, setOffline] = useState(false);
   const [newCardFront, setNewCardFront] = useState("");
   const [newCardBack, setNewCardBack] = useState("");
   const [newCardFrontImage, setNewCardFrontImage] = useState(null);
   const [newCardBackImage, setNewCardBackImage] = useState(null);
+  const [adding, setAdding] = useState(false);
   const [editingCardId, setEditingCardId] = useState(null);
-  const [editFront, setEditFront] = useState("");
-  const [editBack, setEditBack] = useState("");
-  const [editFrontImage, setEditFrontImage] = useState(null);
-  const [editBackImage, setEditBackImage] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [reversed, setReversed] = useState(loadReversePref);
   const [session, setSession] = useState(null); // { cards, title } while studying
   const [shareToken, setShareToken] = useState(deck.share_token || null);
   const [notice, setNotice] = useState("");
@@ -62,10 +41,29 @@ function DeckDetail({ deck, onBack }) {
 
   async function loadCards() {
     try {
-      setCards(await authFetch(`/api/decks/${deck.id}/cards`));
+      const { data, offline: fromCache } = await cachedGet(`/api/decks/${deck.id}/cards`);
+      setCards(data);
+      setOffline(fromCache);
     } catch (e) {
       setError(e.message);
     }
+  }
+
+  function toggleReversed() {
+    const next = !reversed;
+    setReversed(next);
+    try {
+      localStorage.setItem(REVERSE_KEY, next ? "1" : "0");
+    } catch {
+      // the toggle still works for this visit
+    }
+  }
+
+  function startSession(sessionCards, title) {
+    setSession({
+      cards: reversed ? sessionCards.map(swapSides) : sessionCards,
+      title: reversed ? `${title} · back to front` : title,
+    });
   }
 
   async function handleCreateCard() {
@@ -74,6 +72,7 @@ function DeckDetail({ deck, onBack }) {
     if (!hasFront || !hasBack) {
       return setError("Each side needs text, an image, or both.");
     }
+    setAdding(true);
     try {
       const [frontImageUrl, backImageUrl] = await Promise.all([
         resolveImage(deck.id, newCardFrontImage),
@@ -96,39 +95,8 @@ function DeckDetail({ deck, onBack }) {
       await loadCards();
     } catch (e) {
       setError(e.message);
-    }
-  }
-
-  function startEditCard(card) {
-    setEditingCardId(card.id);
-    setEditFront(card.front_text || "");
-    setEditBack(card.back_text || "");
-    setEditFrontImage(
-      card.front_image_url ? { url: card.front_image_url } : null
-    );
-    setEditBackImage(card.back_image_url ? { url: card.back_image_url } : null);
-  }
-
-  async function handleSaveCard(card) {
-    const body = { frontText: editFront, backText: editBack };
-
-    try {
-      if (imageChanged(editFrontImage, card.front_image_url)) {
-        body.frontImageUrl = await resolveImage(deck.id, editFrontImage);
-      }
-      if (imageChanged(editBackImage, card.back_image_url)) {
-        body.backImageUrl = await resolveImage(deck.id, editBackImage);
-      }
-
-      await authFetch(`/api/decks/${deck.id}/cards/${card.id}`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      });
-      setEditingCardId(null);
-      setError("");
-      await loadCards();
-    } catch (e) {
-      setError(e.message);
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -215,10 +183,22 @@ function DeckDetail({ deck, onBack }) {
           </button>
           <h2>{deck.title}</h2>
         </div>
-        <button className="icon-button" onClick={handleShare}>
-          {shareToken ? "Share link" : "Share"}
-        </button>
+        <div className="row-actions">
+          <button className="icon-button" onClick={() => setImporting((v) => !v)}>
+            Import
+          </button>
+          <button className="icon-button" onClick={handleShare}>
+            {shareToken ? "Share link" : "Share"}
+          </button>
+        </div>
       </div>
+
+      {offline && (
+        <p className="notice">
+          You're offline, so this is the copy saved on this device. You can still
+          study it; ratings sync when you're back online.
+        </p>
+      )}
 
       {shareToken && (
         <p className="notice">
@@ -230,74 +210,69 @@ function DeckDetail({ deck, onBack }) {
       )}
       {!shareToken && notice && <p className="notice">{notice}</p>}
 
+      {importing && (
+        <ImportCards
+          deckId={deck.id}
+          onCancel={() => setImporting(false)}
+          onImported={(count) => {
+            setImporting(false);
+            setNotice(`Imported ${count} card${count === 1 ? "" : "s"}.`);
+            loadCards();
+          }}
+        />
+      )}
+
       {cards.length > 0 && (
-        <div className="study-modes">
-          <button
-            className="study-mode study-mode-primary"
-            onClick={() => setSession({ cards, title: deck.title })}
-          >
-            <span className="study-mode-name">Study all</span>
-            <span className="study-mode-sub">{cards.length} cards</span>
-          </button>
-          {cards.length > QUICK_SESSION_SIZE && (
+        <>
+          <div className="study-modes">
+            <button
+              className="study-mode study-mode-primary"
+              onClick={() => startSession(cards, deck.title)}
+            >
+              <span className="study-mode-name">Study all</span>
+              <span className="study-mode-sub">{cards.length} cards</span>
+            </button>
+            {cards.length > QUICK_SESSION_SIZE && (
+              <button
+                className="study-mode"
+                onClick={() => startSession(quickCards(cards), `${deck.title} · quick 10`)}
+              >
+                <span className="study-mode-name">Quick 10</span>
+                <span className="study-mode-sub">random pick</span>
+              </button>
+            )}
             <button
               className="study-mode"
-              onClick={() =>
-                setSession({ cards: quickCards(cards), title: `${deck.title} · quick 10` })
-              }
+              disabled={weak.length === 0}
+              onClick={() => startSession(weak, `${deck.title} · weak cards`)}
             >
-              <span className="study-mode-name">Quick 10</span>
-              <span className="study-mode-sub">random pick</span>
+              <span className="study-mode-name">Weak cards</span>
+              <span className="study-mode-sub">
+                {weak.length === 0 ? "none right now" : `${weak.length} to work on`}
+              </span>
             </button>
-          )}
-          <button
-            className="study-mode"
-            disabled={weak.length === 0}
-            onClick={() => setSession({ cards: weak, title: `${deck.title} · weak cards` })}
-          >
-            <span className="study-mode-name">Weak cards</span>
-            <span className="study-mode-sub">
-              {weak.length === 0 ? "none right now" : `${weak.length} to work on`}
-            </span>
-          </button>
-        </div>
+          </div>
+          <label className="reverse-toggle">
+            <input type="checkbox" checked={reversed} onChange={toggleReversed} />
+            Study back to front
+          </label>
+        </>
       )}
 
       <div className="card-list">
         {cards.map((card) =>
           editingCardId === card.id ? (
-            <div className="card-row-editing" key={card.id}>
-              <div className="card-sides">
-                <CardSideField
-                  label="Front"
-                  text={editFront}
-                  onTextChange={setEditFront}
-                  image={editFrontImage}
-                  onImageChange={setEditFrontImage}
-                />
-                <CardSideField
-                  label="Back"
-                  text={editBack}
-                  onTextChange={setEditBack}
-                  image={editBackImage}
-                  onImageChange={setEditBackImage}
-                />
-              </div>
-              <div className="row-actions">
-                <button
-                  className="auth-button auth-button-primary"
-                  onClick={() => handleSaveCard(card)}
-                >
-                  Save
-                </button>
-                <button
-                  className="auth-button auth-button-secondary"
-                  onClick={() => setEditingCardId(null)}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+            <CardEditForm
+              key={card.id}
+              deckId={deck.id}
+              card={card}
+              onCancel={() => setEditingCardId(null)}
+              onSaved={() => {
+                setEditingCardId(null);
+                setError("");
+                loadCards();
+              }}
+            />
           ) : (
             <div className="card-row" key={card.id}>
               {card.front_image_url && (
@@ -309,7 +284,7 @@ function DeckDetail({ deck, onBack }) {
               )}
               <span className="card-back">{card.back_text}</span>
               <div className="row-actions">
-                <button className="icon-button" onClick={() => startEditCard(card)}>
+                <button className="icon-button" onClick={() => setEditingCardId(card.id)}>
                   Edit
                 </button>
                 <button
@@ -347,8 +322,9 @@ function DeckDetail({ deck, onBack }) {
         <button
           className="auth-button auth-button-primary"
           onClick={handleCreateCard}
+          disabled={adding}
         >
-          Add card
+          {adding ? "Adding…" : "Add card"}
         </button>
       </div>
 

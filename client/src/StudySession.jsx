@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { queueReview } from "./reviewSync";
-
-function shuffle(array) {
-  const copy = [...array];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
+import { shuffle, swapSides } from "./cards";
+import CardEditForm from "./CardEditForm";
 
 // Drops the current (front) card and reinserts it `offset` cards ahead —
 // small offset for "forgot" (soon), larger for "unsure" (later).
@@ -163,6 +156,7 @@ function StudySession({ deck, cards: initialCards, title, onExit }) {
   const [turn, setTurn] = useState(0);
   const [drag, setDrag] = useState({ dx: 0, dy: 0, active: false });
   const [leaving, setLeaving] = useState(null); // rating while the card flies off
+  const [editing, setEditing] = useState(false);
 
   const dragStart = useRef(null);
 
@@ -200,7 +194,7 @@ function StudySession({ deck, cards: initialCards, title, onExit }) {
 
   useEffect(() => {
     function onKey(e) {
-      if (e.target.closest("input, textarea")) return;
+      if (editing || e.target.closest("input, textarea")) return;
       if (e.key === " " || e.key === "Enter") {
         if (e.target.closest("button, a")) return; // let focused controls work
         e.preventDefault();
@@ -208,11 +202,22 @@ function StudySession({ deck, cards: initialCards, title, onExit }) {
       } else if (e.key === "1" || e.key === "ArrowLeft") rate(1);
       else if (e.key === "2" || e.key === "ArrowUp") rate(2);
       else if (e.key === "3" || e.key === "ArrowRight") rate(3);
+      else if (e.key === "e" && !leaving) setEditing(true);
       else if (e.key === "Escape") onExit();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [rate, leaving, onExit]);
+  }, [rate, leaving, onExit, editing]);
+
+  // The API hands back the card as stored; in reverse mode the session holds
+  // it swapped, so swap the saved copy the same way before putting it back.
+  function handleEdited(saved) {
+    const updated = current.reversed ? swapSides(saved) : saved;
+    const replace = (list) => list.map((c) => (c.id === updated.id ? updated : c));
+    setQueue(replace);
+    setCards(replace);
+    setEditing(false);
+  }
 
   function restart(nextCards) {
     setCards(nextCards);
@@ -302,40 +307,58 @@ function StudySession({ deck, cards: initialCards, title, onExit }) {
         <div className="study-progress-fill" style={{ width: `${progressPct}%` }} />
       </div>
 
-      <div className="study-stage">
-        <div
-          key={turn}
-          className={"study-card" + (leaving ? " study-card-leaving" : "")}
-          style={cardStyle}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-        >
-          <div className={"study-card-inner" + (flipped ? " is-flipped" : "")}>
-            <CardFace side="front" card={current} hint="tap to flip" />
-            <CardFace side="back" card={current} hint="swipe or pick below" />
-          </div>
-          {shownRating && (
-            <div className={`study-card-stamp summary-${shownRating}`}>
-              {RATINGS[shownRating].label}
+      {editing ? (
+        <CardEditForm
+          deckId={deck.id}
+          card={current.reversed ? swapSides(current) : current}
+          onSaved={handleEdited}
+          onCancel={() => setEditing(false)}
+        />
+      ) : (
+        <>
+          <div className="study-stage">
+            <div
+              key={turn}
+              className={"study-card" + (leaving ? " study-card-leaving" : "")}
+              style={cardStyle}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+            >
+              <div className={"study-card-inner" + (flipped ? " is-flipped" : "")}>
+                <CardFace side="front" card={current} hint="tap to flip" />
+                <CardFace side="back" card={current} hint="swipe or pick below" />
+              </div>
+              <button
+                className="study-card-edit"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => setEditing(true)}
+              >
+                Edit
+              </button>
+              {shownRating && (
+                <div className={`study-card-stamp summary-${shownRating}`}>
+                  {RATINGS[shownRating].label}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      <div className={"study-actions" + (flipped ? "" : " study-actions-hidden")}>
-        <button className="study-button study-button-forgot" onClick={() => rate(1)} tabIndex={flipped ? 0 : -1}>
-          Forgot <kbd>1</kbd>
-        </button>
-        <button className="study-button study-button-unsure" onClick={() => rate(2)} tabIndex={flipped ? 0 : -1}>
-          Unsure <kbd>2</kbd>
-        </button>
-        <button className="study-button study-button-remembered" onClick={() => rate(3)} tabIndex={flipped ? 0 : -1}>
-          Remembered <kbd>3</kbd>
-        </button>
-      </div>
-      <p className="study-keys-hint">Space to flip · 1 2 3 to rate · Esc to stop</p>
+          <div className={"study-actions" + (flipped ? "" : " study-actions-hidden")}>
+            <button className="study-button study-button-forgot" onClick={() => rate(1)} tabIndex={flipped ? 0 : -1}>
+              Forgot <kbd>1</kbd>
+            </button>
+            <button className="study-button study-button-unsure" onClick={() => rate(2)} tabIndex={flipped ? 0 : -1}>
+              Unsure <kbd>2</kbd>
+            </button>
+            <button className="study-button study-button-remembered" onClick={() => rate(3)} tabIndex={flipped ? 0 : -1}>
+              Remembered <kbd>3</kbd>
+            </button>
+          </div>
+          <p className="study-keys-hint">Space to flip · 1 2 3 to rate · E to edit · Esc to stop</p>
+        </>
+      )}
     </div>
   );
 }

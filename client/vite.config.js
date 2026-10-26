@@ -28,6 +28,21 @@ export default defineConfig({
           },
         ],
       },
+      // Card images come from Supabase Storage on another origin. Keeping the
+      // ones you've seen means a saved deck still shows its pictures offline.
+      workbox: {
+        runtimeCaching: [
+          {
+            urlPattern: /\/storage\/v1\/object\/public\/card-images\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'card-images',
+              expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+      },
       devOptions: {
         enabled: true,
       },
