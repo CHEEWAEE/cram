@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import ThemeToggle from "./ThemeToggle";
 import InstallPrompt from "./InstallPrompt";
 import Decks from "./Decks";
-import { PENDING_SHARE_KEY } from "./api";
+import { clearCache, PENDING_SHARE_KEY } from "./api";
 import "./App.css";
 
 // The little stack of cards beside the login form. The top card flips on a loop
@@ -27,15 +27,34 @@ function DemoStack() {
   );
 }
 
-// When Supabase fails on its side (most often when it can't send an email)
-// the error comes back with "{}" or nothing as its message.
+// Supabase's auth errors, in plain words. Matched loosely because the exact
+// wording shifts between versions. When Supabase fails on its side (most often
+// when it can't send an email) the message comes back as "{}" or nothing.
+const AUTH_ERRORS = [
+  [/invalid login credentials/i, "Wrong email or password."],
+  [/email not confirmed/i, "Confirm your email first. The link is in your inbox."],
+  [/rate limit/i, "Too many emails sent in the last hour. Try again a bit later."],
+  [/already registered|already been registered/i, "That email already has an account. Log in instead."],
+  [/password should be at least (\d+)/i, (m) => `Use a password of at least ${m[1]} characters.`],
+  [/unable to validate email|invalid email/i, "That doesn't look like an email address."],
+  [/failed to fetch|network/i, "Can't reach Cram. Check your connection and try again."],
+];
+
 function authErrorMessage(error) {
   const msg = error?.message;
   if (!msg || msg === "{}") {
     return "Something went wrong on our end. Try again in a minute.";
   }
+  for (const [pattern, friendly] of AUTH_ERRORS) {
+    const match = msg.match(pattern);
+    if (match) return typeof friendly === "function" ? friendly(match) : friendly;
+  }
   return msg;
 }
+
+// Where confirmation and reset links send people back to: the site they're on,
+// not the Site URL set in the Supabase dashboard.
+const authRedirect = () => ({ emailRedirectTo: window.location.origin });
 
 function App() {
   const [email, setEmail] = useState("");
@@ -43,7 +62,7 @@ function App() {
   const [newPassword, setNewPassword] = useState("");
   const [user, setUser] = useState(null);
   const [message, setMessage] = useState("");
-  const [view, setView] = useState("login"); // "login" | "recovery"
+  const [view, setView] = useState("login"); // "login" | "check-email" | "recovery"
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -71,15 +90,28 @@ function App() {
 
   async function handleSignUp() {
     if (missingCredentials()) return;
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      // Send the confirmation link back to whichever site they signed up on,
-      // not the Site URL set in the Supabase dashboard.
-      options: { emailRedirectTo: window.location.origin },
+      options: authRedirect(),
     });
     if (error) return setMessage(authErrorMessage(error));
-    setMessage("Signed up! Check your email to confirm, then log in.");
+    // For an address that already has a confirmed account, Supabase sends no
+    // email and returns a user with no identities rather than an error.
+    if (data.user && data.user.identities?.length === 0) {
+      return setMessage("That email already has an account. Log in instead.");
+    }
+    setMessage("");
+    setView("check-email");
+  }
+
+  async function handleResend() {
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: authRedirect(),
+    });
+    setMessage(error ? authErrorMessage(error) : "Sent another one. Check your inbox.");
   }
 
   async function handleLogin() {
@@ -94,6 +126,7 @@ function App() {
   }
 
   async function handleLogout() {
+    clearCache();
     await supabase.auth.signOut();
     setUser(null);
   }
@@ -117,6 +150,42 @@ function App() {
     setNewPassword("");
     setView("login");
     setMessage("Password updated. Log in with your new password.");
+  }
+
+  if (view === "check-email") {
+    return (
+      <>
+      <ThemeToggle />
+      <div className="auth-page">
+        <div className="auth-card check-email">
+          <div className="check-email-icon" aria-hidden="true">✉</div>
+          <h2>Check your inbox</h2>
+          <p className="check-email-text">
+            We sent a link to <strong>{email}</strong>. Click it to confirm your
+            account and you'll be logged straight in.
+          </p>
+          <p className="deck-empty">
+            Nothing after a minute? Check spam, or send it again.
+          </p>
+          <div className="auth-actions">
+            <button className="auth-button auth-button-secondary" onClick={handleResend}>
+              Resend email
+            </button>
+            <button
+              className="auth-button auth-button-primary"
+              onClick={() => {
+                setMessage("");
+                setView("login");
+              }}
+            >
+              Back to log in
+            </button>
+          </div>
+          <p className="auth-message">{message}</p>
+        </div>
+      </div>
+      </>
+    );
   }
 
   if (view === "recovery") {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { shrinkImage } from "./shrinkImage";
 
 // One side of a card: a single box that takes text and, optionally, an image.
 // The image can be pasted straight into the box (Ctrl+V), dragged onto it, or
@@ -19,9 +20,10 @@ function CardSideField({ label, text, onTextChange, image, onImageChange, placeh
     return () => URL.revokeObjectURL(objectUrl);
   }, [image]);
 
-  function handleFile(file) {
+  async function handleFile(file) {
     if (!file || !file.type.startsWith("image/")) return;
-    onImageChange({ url: URL.createObjectURL(file), file });
+    const small = await shrinkImage(file);
+    onImageChange({ url: URL.createObjectURL(small), file: small });
   }
 
   return (
