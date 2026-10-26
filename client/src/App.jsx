@@ -71,7 +71,13 @@ function App() {
 
   async function handleSignUp() {
     if (missingCredentials()) return;
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      // Send the confirmation link back to whichever site they signed up on,
+      // not the Site URL set in the Supabase dashboard.
+      options: { emailRedirectTo: window.location.origin },
+    });
     if (error) return setMessage(authErrorMessage(error));
     setMessage("Signed up! Check your email to confirm, then log in.");
   }
