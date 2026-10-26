@@ -27,6 +27,16 @@ function DemoStack() {
   );
 }
 
+// When Supabase fails on its side (most often when it can't send an email)
+// the error comes back with "{}" or nothing as its message.
+function authErrorMessage(error) {
+  const msg = error?.message;
+  if (!msg || msg === "{}") {
+    return "Something went wrong on our end. Try again in a minute.";
+  }
+  return msg;
+}
+
 function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,7 +72,7 @@ function App() {
   async function handleSignUp() {
     if (missingCredentials()) return;
     const { error } = await supabase.auth.signUp({ email, password });
-    if (error) return setMessage(error.message);
+    if (error) return setMessage(authErrorMessage(error));
     setMessage("Signed up! Check your email to confirm, then log in.");
   }
 
@@ -72,7 +82,7 @@ function App() {
       email,
       password,
     });
-    if (error) return setMessage(error.message);
+    if (error) return setMessage(authErrorMessage(error));
     setUser(data.user);
     setMessage("");
   }
@@ -87,7 +97,7 @@ function App() {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin,
     });
-    if (error) return setMessage(error.message);
+    if (error) return setMessage(authErrorMessage(error));
     setMessage("Check your email for a password reset link.");
   }
 
@@ -95,7 +105,7 @@ function App() {
     const { error } = await supabase.auth.updateUser({
       password: newPassword,
     });
-    if (error) return setMessage(error.message);
+    if (error) return setMessage(authErrorMessage(error));
     await supabase.auth.signOut();
     setUser(null);
     setNewPassword("");
