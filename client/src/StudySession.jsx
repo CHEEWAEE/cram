@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { queueReview } from "./reviewSync";
 import { shuffle, swapSides } from "./cards";
 import CardEditForm from "./CardEditForm";
+import OcclusionView from "./OcclusionView";
 
 // Drops the current (front) card and reinserts it `offset` cards ahead —
 // small offset for "forgot" (soon), larger for "unsure" (later).
@@ -35,6 +36,22 @@ function ratingForDrag(dx, dy) {
 }
 
 function CardFace({ side, card, hint }) {
+  if (card.occlusion) {
+    const reveal = side === "back";
+    return (
+      <div className={`study-face study-face-${side}`}>
+        <div className="study-card-label">{reveal ? "Answer" : "What's under the box?"}</div>
+        <OcclusionView
+          src={card.front_image_url}
+          boxes={card.occlusion.boxes}
+          target={card.occlusion.target}
+          reveal={reveal}
+        />
+        {reveal && card.back_text && <div className="study-card-text">{card.back_text}</div>}
+        <div className="study-card-hint">{hint}</div>
+      </div>
+    );
+  }
   const text = side === "front" ? card.front_text : card.back_text;
   const image = side === "front" ? card.front_image_url : card.back_image_url;
   return (
@@ -120,7 +137,7 @@ function SessionSummary({ deck, cards, firstRatings, attempts, onRestart, onExit
             <div className="summary-heading">Took the most goes</div>
             {toughest.map((c) => (
               <div className="summary-tough-row" key={c.id}>
-                <span>{c.front_text || "(image card)"}</span>
+                <span>{c.front_text || c.back_text || "(image card)"}</span>
                 <span className="summary-tough-count">×{attempts.get(c.id)}</span>
               </div>
             ))}
@@ -202,12 +219,12 @@ function StudySession({ deck, cards: initialCards, title, onExit }) {
       } else if (e.key === "1" || e.key === "ArrowLeft") rate(1);
       else if (e.key === "2" || e.key === "ArrowUp") rate(2);
       else if (e.key === "3" || e.key === "ArrowRight") rate(3);
-      else if (e.key === "e" && !leaving) setEditing(true);
+      else if (e.key === "e" && !leaving && !queue[0]?.occlusion) setEditing(true);
       else if (e.key === "Escape") onExit();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [rate, leaving, onExit, editing]);
+  }, [rate, leaving, onExit, editing, queue]);
 
   // The API hands back the card as stored; in reverse mode the session holds
   // it swapped, so swap the saved copy the same way before putting it back.
@@ -330,13 +347,15 @@ function StudySession({ deck, cards: initialCards, title, onExit }) {
                 <CardFace side="front" card={current} hint="tap to flip" />
                 <CardFace side="back" card={current} hint="swipe or pick below" />
               </div>
-              <button
-                className="study-card-edit"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => setEditing(true)}
-              >
-                Edit
-              </button>
+              {!current.occlusion && (
+                <button
+                  className="study-card-edit"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => setEditing(true)}
+                >
+                  Edit
+                </button>
+              )}
               {shownRating && (
                 <div className={`study-card-stamp summary-${shownRating}`}>
                   {RATINGS[shownRating].label}
@@ -356,7 +375,9 @@ function StudySession({ deck, cards: initialCards, title, onExit }) {
               Remembered <kbd>3</kbd>
             </button>
           </div>
-          <p className="study-keys-hint">Space to flip · 1 2 3 to rate · E to edit · Esc to stop</p>
+          <p className="study-keys-hint">
+            Space to flip · 1 2 3 to rate{current.occlusion ? "" : " · E to edit"} · Esc to stop
+          </p>
         </>
       )}
     </div>

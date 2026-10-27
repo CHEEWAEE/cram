@@ -10,6 +10,8 @@ export function shuffle(array) {
 // Reverse mode studies back → front. The card keeps its id, so ratings still
 // land on the right card; `reversed` lets an edit swap it back before saving.
 export function swapSides(card) {
+  // An image with boxes has no "back" to ask from, so it never flips.
+  if (card.occlusion) return card;
   return {
     ...card,
     front_text: card.back_text,

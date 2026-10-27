@@ -2,9 +2,22 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { authFetch, fetchSharedDeck, PENDING_SHARE_KEY } from "./api";
 import ThemeToggle from "./ThemeToggle";
+import OcclusionView from "./OcclusionView";
 import "./App.css";
 
 const PREVIEW_COUNT = 6;
+
+// An image with boxes arrives as one card per box; preview it once.
+function previewCards(cards) {
+  const seen = new Set();
+  return cards.filter((c) => {
+    const group = c.occlusion?.group;
+    if (!group) return true;
+    if (seen.has(group)) return false;
+    seen.add(group);
+    return true;
+  });
+}
 
 function SharedDeck({ token }) {
   const [deck, setDeck] = useState(null);
@@ -55,18 +68,30 @@ function SharedDeck({ token }) {
               </div>
 
               <div className="card-list">
-                {deck.cards.slice(0, PREVIEW_COUNT).map((card, i) => (
-                  <div className="card-row" key={i}>
-                    {card.front_image_url && (
-                      <img className="card-thumb" src={card.front_image_url} alt="" />
-                    )}
-                    <span className="card-front">{card.front_text}</span>
-                    <span className="card-back">{card.back_text}</span>
-                  </div>
-                ))}
-                {deck.cards.length > PREVIEW_COUNT && (
+                {previewCards(deck.cards).slice(0, PREVIEW_COUNT).map((card, i) =>
+                  card.occlusion ? (
+                    <div className="card-row" key={i}>
+                      <div className="occl-thumb">
+                        <OcclusionView src={card.front_image_url} boxes={card.occlusion.boxes} />
+                      </div>
+                      <span className="card-front">
+                        {card.occlusion.boxes.length} hidden part
+                        {card.occlusion.boxes.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="card-row" key={i}>
+                      {card.front_image_url && (
+                        <img className="card-thumb" src={card.front_image_url} alt="" />
+                      )}
+                      <span className="card-front">{card.front_text}</span>
+                      <span className="card-back">{card.back_text}</span>
+                    </div>
+                  )
+                )}
+                {previewCards(deck.cards).length > PREVIEW_COUNT && (
                   <p className="deck-empty">
-                    and {deck.cards.length - PREVIEW_COUNT} more
+                    and {previewCards(deck.cards).length - PREVIEW_COUNT} more
                   </p>
                 )}
               </div>

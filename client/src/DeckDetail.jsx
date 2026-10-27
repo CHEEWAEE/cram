@@ -3,6 +3,8 @@ import { authFetch, cachedGet, resolveImage } from "./api";
 import CardSideField from "./CardSideField";
 import CardEditForm from "./CardEditForm";
 import ImportCards from "./ImportCards";
+import OcclusionEditor from "./OcclusionEditor";
+import OcclusionView from "./OcclusionView";
 import StudySession from "./StudySession";
 import StrengthBar from "./StrengthBar";
 import { flushReviews } from "./reviewSync";
@@ -18,6 +20,30 @@ function loadReversePref() {
   }
 }
 
+// Cards made from one image share an occlusion group; the list shows each
+// group once, where its first card would have been.
+function listItems(cards) {
+  const items = [];
+  const groups = new Map();
+  for (const card of cards) {
+    const group = card.occlusion?.group;
+    if (!group) {
+      items.push({ kind: "basic", card });
+    } else if (groups.has(group)) {
+      groups.get(group).cards.push(card);
+    } else {
+      const item = { kind: "occlusion", group, cards: [card] };
+      groups.set(group, item);
+      items.push(item);
+    }
+  }
+  return items;
+}
+
+function averageStrength(cards) {
+  return cards.reduce((sum, c) => sum + (c.strength ?? 0), 0) / cards.length;
+}
+
 function DeckDetail({ deck, onBack }) {
   const [cards, setCards] = useState([]);
   const [offline, setOffline] = useState(false);
@@ -27,6 +53,9 @@ function DeckDetail({ deck, onBack }) {
   const [newCardBackImage, setNewCardBackImage] = useState(null);
   const [adding, setAdding] = useState(false);
   const [editingCardId, setEditingCardId] = useState(null);
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [cardKind, setCardKind] = useState("basic"); // "basic" | "occlusion"
+  const [occlusionKey, setOcclusionKey] = useState(0); // remounts the editor after a save
   const [importing, setImporting] = useState(false);
   const [reversed, setReversed] = useState(loadReversePref);
   const [session, setSession] = useState(null); // { cards, title } while studying
@@ -106,6 +135,17 @@ function DeckDetail({ deck, onBack }) {
       await authFetch(`/api/decks/${deck.id}/cards/${card.id}`, {
         method: "DELETE",
       });
+      setError("");
+      await loadCards();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function handleDeleteGroup(group) {
+    if (!window.confirm("Delete this image and all its boxes?")) return;
+    try {
+      await authFetch(`/api/decks/${deck.id}/occlusions/${group}`, { method: "DELETE" });
       setError("");
       await loadCards();
     } catch (e) {
@@ -260,8 +300,57 @@ function DeckDetail({ deck, onBack }) {
       )}
 
       <div className="card-list">
-        {cards.map((card) =>
-          editingCardId === card.id ? (
+        {listItems(cards).map((item) => {
+          if (item.kind === "occlusion") {
+            const first = item.cards[0];
+            if (editingGroup === item.group) {
+              return (
+                <div className="card-row-editing" key={item.group}>
+                  <OcclusionEditor
+                    deckId={deck.id}
+                    initial={{
+                      group: item.group,
+                      imageUrl: first.front_image_url,
+                      boxes: first.occlusion.boxes,
+                    }}
+                    onCancel={() => setEditingGroup(null)}
+                    onSaved={() => {
+                      setEditingGroup(null);
+                      setError("");
+                      loadCards();
+                    }}
+                  />
+                </div>
+              );
+            }
+            const labels = first.occlusion.boxes.map((b) => b.label).filter(Boolean);
+            return (
+              <div className="card-row" key={item.group}>
+                <div className="occl-thumb">
+                  <OcclusionView src={first.front_image_url} boxes={first.occlusion.boxes} numbered />
+                </div>
+                <span className="card-front">
+                  {item.cards.length} box{item.cards.length === 1 ? "" : "es"}
+                </span>
+                {labels.length > 0 && <span className="card-back">{labels.join(" · ")}</span>}
+                <div className="row-actions">
+                  <button className="icon-button" onClick={() => setEditingGroup(item.group)}>
+                    Edit
+                  </button>
+                  <button
+                    className="icon-button icon-button-danger"
+                    onClick={() => handleDeleteGroup(item.group)}
+                  >
+                    Delete
+                  </button>
+                  <StrengthBar value={averageStrength(item.cards)} />
+                </div>
+              </div>
+            );
+          }
+
+          const { card } = item;
+          return editingCardId === card.id ? (
             <CardEditForm
               key={card.id}
               deckId={deck.id}
@@ -296,36 +385,69 @@ function DeckDetail({ deck, onBack }) {
                 <StrengthBar value={card.strength} />
               </div>
             </div>
-          )
-        )}
+          );
+        })}
       </div>
 
       <div className="create-card-form">
-        <div className="card-sides">
-          <CardSideField
-            label="Front"
-            text={newCardFront}
-            onTextChange={setNewCardFront}
-            image={newCardFrontImage}
-            onImageChange={setNewCardFrontImage}
-            placeholder="Type, or paste an image"
-          />
-          <CardSideField
-            label="Back"
-            text={newCardBack}
-            onTextChange={setNewCardBack}
-            image={newCardBackImage}
-            onImageChange={setNewCardBackImage}
-            placeholder="Type, or paste an image"
-          />
+        <div className="kind-switch" role="tablist" aria-label="Card type">
+          <button
+            role="tab"
+            aria-selected={cardKind === "basic"}
+            className={cardKind === "basic" ? "kind-active" : ""}
+            onClick={() => setCardKind("basic")}
+          >
+            Basic
+          </button>
+          <button
+            role="tab"
+            aria-selected={cardKind === "occlusion"}
+            className={cardKind === "occlusion" ? "kind-active" : ""}
+            onClick={() => setCardKind("occlusion")}
+          >
+            Image boxes
+          </button>
         </div>
-        <button
-          className="auth-button auth-button-primary"
-          onClick={handleCreateCard}
-          disabled={adding}
-        >
-          {adding ? "Adding…" : "Add card"}
-        </button>
+
+        {cardKind === "basic" ? (
+          <>
+            <div className="card-sides">
+              <CardSideField
+                label="Front"
+                text={newCardFront}
+                onTextChange={setNewCardFront}
+                image={newCardFrontImage}
+                onImageChange={setNewCardFrontImage}
+                placeholder="Type, or paste an image"
+              />
+              <CardSideField
+                label="Back"
+                text={newCardBack}
+                onTextChange={setNewCardBack}
+                image={newCardBackImage}
+                onImageChange={setNewCardBackImage}
+                placeholder="Type, or paste an image"
+              />
+            </div>
+            <button
+              className="auth-button auth-button-primary"
+              onClick={handleCreateCard}
+              disabled={adding}
+            >
+              {adding ? "Adding…" : "Add card"}
+            </button>
+          </>
+        ) : (
+          <OcclusionEditor
+            key={occlusionKey}
+            deckId={deck.id}
+            onSaved={(count) => {
+              setOcclusionKey((k) => k + 1);
+              setNotice(`Added ${count} card${count === 1 ? "" : "s"} from the image.`);
+              loadCards();
+            }}
+          />
+        )}
       </div>
 
       {error && <p className="auth-message">{error}</p>}
