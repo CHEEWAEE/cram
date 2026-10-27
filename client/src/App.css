@@ -1418,3 +1418,196 @@
 .check-email .auth-actions {
   width: 100%;
 }
+
+/* ---- image boxes (occlusion) ---- */
+.kind-switch {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.kind-switch button {
+  border: none;
+  background: none;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.kind-switch .kind-active {
+  background: var(--surface);
+  color: var(--text-h);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* The wrapper shrink-wraps the image so box percentages line up with it. */
+.occl {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  line-height: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.occl img {
+  display: block;
+  max-width: 100%;
+  max-height: 340px;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.occl-box {
+  position: absolute;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: #e9dfcc;
+  border: 1.5px solid #b9a988;
+  color: #6b5d43;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.occl-box-target {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.occl-box-revealed {
+  background: transparent;
+  border: 2.5px solid var(--good);
+  box-shadow: 0 0 0 3px rgba(31, 138, 91, 0.2);
+}
+
+.occl-thumb .occl img {
+  max-height: 140px;
+}
+
+.occl-thumb {
+  align-self: flex-start;
+}
+
+.occl-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  font-size: 14px;
+  color: var(--text);
+}
+
+.occl-pick .auth-button {
+  flex: none;
+  padding: 10px 18px;
+}
+
+.occl-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.occl-help {
+  margin: 0;
+  text-align: left;
+}
+
+.occl-surface {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.occl-surface .occl-box {
+  cursor: move;
+  touch-action: none;
+}
+
+.occl-box-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.occl-box-draft {
+  background: var(--accent-bg);
+  border: 2px dashed var(--accent);
+}
+
+.occl-labels {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.occl-labels li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.occl-labels .occl-label-selected {
+  background: var(--accent-bg);
+}
+
+.occl-labels input {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.occl-num {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: #e9dfcc;
+  color: #6b5d43;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.occl-actions {
+  flex-wrap: wrap;
+  padding-right: 0;
+}
+
+.occl-actions .auth-button {
+  flex: 1 1 120px;
+  padding: 11px 14px;
+}
+
+.study-face .occl img {
+  max-height: 300px;
+}

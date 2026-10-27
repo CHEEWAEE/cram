@@ -26,11 +26,17 @@ create table cards (
   back_image_url text,
   -- 0 to 1, nudged toward 0 / 0.5 / 1 by each first rating in a session.
   strength real not null default 0.5,
+  -- Image occlusion cards only: { group, target, boxes: [{ id, x, y, w, h, label }] }.
+  -- One card per box; all cards made from one image share a group id and the
+  -- full box list. x, y, w, h are fractions of the image size.
+  occlusion jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index cards_deck_id_idx on cards (deck_id);
+create index cards_occlusion_group_idx on cards ((occlusion->>'group'))
+  where occlusion is not null;
 
 create table reviews (
   id bigint generated always as identity primary key,

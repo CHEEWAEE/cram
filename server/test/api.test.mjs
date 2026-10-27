@@ -192,3 +192,96 @@ test("only Cram's own origins get CORS headers", async () => {
   const other = await api("/health", { headers: { origin: "https://evil.example" } });
   assert.equal(other.headers.get("access-control-allow-origin"), null);
 });
+
+// Card image URLs must point into our storage bucket.
+const img = (name) => `${process.env.SUPABASE_URL}/storage/v1/object/public/card-images/${name}.png`;
+const box = (id, label = "", x = 0.1) => ({ id, x, y: 0.1, w: 0.2, h: 0.1, label });
+
+test("image occlusion: one card per box, sharing a group", async () => {
+  const deckId = await makeDeck(USER_A, "Leg");
+  const res = await api(`/api/decks/${deckId}/occlusions`, {
+    user: USER_A, method: "POST",
+    body: { imageUrl: img("leg"), boxes: [box("a", "Patella"), box("b", "", 0.5)] },
+  });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.cards.length, 2);
+
+  const { body: cards } = await api(`/api/decks/${deckId}/cards`, { user: USER_A });
+  assert.deepEqual(cards.map((c) => c.occlusion.target), ["a", "b"]);
+  assert.equal(cards[0].back_text, "Patella");
+  assert.equal(cards[1].back_text, null);
+  assert.equal(cards[0].front_image_url, img("leg"));
+  assert.equal(cards[0].occlusion.group, res.body.group);
+  assert.equal(cards[1].occlusion.boxes.length, 2);
+});
+
+test("image occlusion: editing keeps strength for boxes that stay", async () => {
+  const deckId = await makeDeck(USER_A, "Leg");
+  const { body: made } = await api(`/api/decks/${deckId}/occlusions`, {
+    user: USER_A, method: "POST",
+    body: { imageUrl: img("leg"), boxes: [box("a"), box("b", "", 0.5)] },
+  });
+  const cardA = made.cards.find((c) => c.occlusion.target === "a");
+  await api(`/api/decks/${deckId}/cards/${cardA.id}/reviews`, {
+    user: USER_A, method: "POST", body: { rating: 3 },
+  });
+
+  const put = await api(`/api/decks/${deckId}/occlusions/${made.group}`, {
+    user: USER_A, method: "PUT",
+    body: { imageUrl: img("leg2"), boxes: [box("a", "Tibia"), box("c", "", 0.7)] },
+  });
+  assert.deepEqual(put.body, { kept: 1, added: 1, removed: 1 });
+
+  const { body: cards } = await api(`/api/decks/${deckId}/cards`, { user: USER_A });
+  assert.deepEqual(cards.map((c) => c.occlusion.target).sort(), ["a", "c"]);
+  const a = cards.find((c) => c.occlusion.target === "a");
+  assert.equal(a.id, cardA.id);
+  assert.ok(a.strength > 0.5, "box a kept its strength");
+  assert.equal(a.back_text, "Tibia");
+  assert.equal(a.front_image_url, img("leg2"));
+  assert.ok(cards.every((c) => c.occlusion.boxes.length === 2));
+});
+
+test("image occlusion: ownership, validation and delete", async () => {
+  const deckId = await makeDeck(USER_A, "Leg");
+  const { body: made } = await api(`/api/decks/${deckId}/occlusions`, {
+    user: USER_A, method: "POST", body: { imageUrl: img("leg"), boxes: [box("a")] },
+  });
+  const body = { imageUrl: img("leg"), boxes: [box("a")] };
+
+  const strangerPost = await api(`/api/decks/${deckId}/occlusions`, { user: USER_B, method: "POST", body });
+  assert.equal(strangerPost.status, 404);
+  const strangerPut = await api(`/api/decks/${deckId}/occlusions/${made.group}`, { user: USER_B, method: "PUT", body });
+  assert.equal(strangerPut.status, 404);
+  const strangerDel = await api(`/api/decks/${deckId}/occlusions/${made.group}`, { user: USER_B, method: "DELETE" });
+  assert.equal(strangerDel.status, 404);
+
+  const bad = [
+    { imageUrl: "https://evil.example/x.png", boxes: [box("a")] },
+    { imageUrl: img("leg"), boxes: [] },
+    { imageUrl: img("leg"), boxes: [box("a"), box("a")] },
+    { imageUrl: img("leg"), boxes: [{ ...box("a"), x: 0.9, w: 0.5 }] },
+  ];
+  for (const b of bad) {
+    const r = await api(`/api/decks/${deckId}/occlusions`, { user: USER_A, method: "POST", body: b });
+    assert.equal(r.status, 400, JSON.stringify(b));
+  }
+
+  const del = await api(`/api/decks/${deckId}/occlusions/${made.group}`, { user: USER_A, method: "DELETE" });
+  assert.equal(del.status, 204);
+  const { body: cards } = await api(`/api/decks/${deckId}/cards`, { user: USER_A });
+  assert.equal(cards.length, 0);
+});
+
+test("image occlusion cards survive sharing and copying", async () => {
+  const deckId = await makeDeck(USER_A, "Leg");
+  await api(`/api/decks/${deckId}/occlusions`, {
+    user: USER_A, method: "POST", body: { imageUrl: img("leg"), boxes: [box("a", "Patella")] },
+  });
+  const { body: share } = await api(`/api/decks/${deckId}/share`, { user: USER_A, method: "POST" });
+  const preview = await api(`/api/shared/${share.shareToken}`);
+  assert.equal(preview.body.cards[0].occlusion.target, "a");
+  const { body: copy } = await api(`/api/shared/${share.shareToken}/copy`, { user: USER_B, method: "POST" });
+  const { body: copied } = await api(`/api/decks/${copy.id}/cards`, { user: USER_B });
+  assert.equal(copied[0].occlusion.boxes[0].label, "Patella");
+});

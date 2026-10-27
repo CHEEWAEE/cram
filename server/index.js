@@ -299,6 +299,135 @@ app.post("/api/decks/:deckId/cards/bulk", requireAuth, async (req, res) => {
   }
 });
 
+// ---- image occlusion ----
+// Boxes drawn over an image, each hiding one part to recall. Every box becomes
+// its own card (so each part has its own strength), and the cards from one
+// image share a group id so they can be edited and deleted together.
+const MAX_BOXES = 100;
+const MAX_LABEL = 300;
+
+function validateOcclusion(body) {
+  const fail = (msg) => {
+    throw Object.assign(new Error(msg), { status: 400 });
+  };
+  const imageUrl = validateImageUrl(body.imageUrl);
+  if (!imageUrl) fail("An image is required");
+
+  const { boxes } = body;
+  if (!Array.isArray(boxes) || boxes.length === 0) fail("Draw at least one box");
+  if (boxes.length > MAX_BOXES) fail(`At most ${MAX_BOXES} boxes per image`);
+
+  const seen = new Set();
+  const clean = boxes.map((b) => {
+    const id = typeof b?.id === "string" ? b.id : "";
+    if (!/^[\w-]{1,40}$/.test(id) || seen.has(id)) fail("Each box needs a unique id");
+    seen.add(id);
+    const [x, y, w, h] = [b.x, b.y, b.w, b.h];
+    const inRange = [x, y, w, h].every((n) => Number.isFinite(n) && n >= 0 && n <= 1);
+    if (!inRange || w <= 0 || h <= 0 || x + w > 1.001 || y + h > 1.001) {
+      fail("Boxes must sit inside the image");
+    }
+    const label = typeof b.label === "string" ? b.label.trim().slice(0, MAX_LABEL) : "";
+    return { id, x, y, w, h, label };
+  });
+  return { imageUrl, boxes: clean };
+}
+
+app.post("/api/decks/:deckId/occlusions", requireAuth, async (req, res) => {
+  try {
+    const { imageUrl, boxes } = validateOcclusion(req.body);
+    const group = crypto.randomUUID();
+    const { rows } = await pool.query(
+      `insert into cards (deck_id, front_image_url, back_text, occlusion, created_at)
+       select $1, $2, nullif(b.label, ''),
+              jsonb_build_object('group', $3::text, 'target', b.id, 'boxes', $4::jsonb),
+              now() + b.n * interval '1 millisecond'
+       from rows from (jsonb_to_recordset($4::jsonb) as (id text, label text))
+            with ordinality as b(id, label, n)
+       where exists (select 1 from decks where id = $1 and user_id = $5)
+       returning *`,
+      [req.params.deckId, imageUrl, group, JSON.stringify(boxes), req.user.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "Deck not found" });
+    res.status(201).json({ group, cards: rows });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// Replaces a group's image and boxes. Boxes that kept their id keep their card
+// (and its strength); removed boxes lose theirs; new boxes get new cards.
+app.put("/api/decks/:deckId/occlusions/:group", requireAuth, async (req, res) => {
+  try {
+    const { imageUrl, boxes } = validateOcclusion(req.body);
+    const { rows } = await pool.query(
+      `with existing as (
+         select cards.id, cards.occlusion->>'target' as target
+         from cards join decks on decks.id = cards.deck_id
+         where cards.deck_id = $1 and decks.user_id = $2
+           and cards.occlusion->>'group' = $3
+       ),
+       input as (
+         select id, label, n
+         from rows from (jsonb_to_recordset($4::jsonb) as (id text, label text))
+              with ordinality as t(id, label, n)
+       ),
+       removed as (
+         delete from cards
+         where id in (select id from existing
+                      where target not in (select id from input))
+         returning id
+       ),
+       kept as (
+         update cards
+         set front_image_url = $5,
+             back_text = nullif(input.label, ''),
+             occlusion = jsonb_build_object('group', $3::text, 'target', input.id, 'boxes', $4::jsonb),
+             updated_at = now()
+         from existing join input on input.id = existing.target
+         where cards.id = existing.id
+         returning cards.id
+       ),
+       added as (
+         insert into cards (deck_id, front_image_url, back_text, occlusion, created_at)
+         select $1, $5, nullif(input.label, ''),
+                jsonb_build_object('group', $3::text, 'target', input.id, 'boxes', $4::jsonb),
+                now() + input.n * interval '1 millisecond'
+         from input
+         where exists (select 1 from existing)
+           and input.id not in (select target from existing)
+         returning id
+       )
+       select (select count(*) from existing)::int as existing,
+              (select count(*) from kept)::int as kept,
+              (select count(*) from added)::int as added,
+              (select count(*) from removed)::int as removed`,
+      [req.params.deckId, req.user.id, req.params.group, JSON.stringify(boxes), imageUrl]
+    );
+    if (rows[0].existing === 0) return res.status(404).json({ error: "Card not found" });
+    const { kept, added, removed } = rows[0];
+    res.json({ kept, added, removed });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+app.delete("/api/decks/:deckId/occlusions/:group", requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `delete from cards using decks
+       where cards.deck_id = $1 and decks.id = cards.deck_id and decks.user_id = $2
+         and cards.occlusion->>'group' = $3
+       returning cards.id`,
+      [req.params.deckId, req.user.id, req.params.group]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "Card not found" });
+    res.status(204).end();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.patch("/api/decks/:deckId/cards/:cardId", requireAuth, async (req, res) => {
   try {
     const card = await findOwnedCard(
@@ -479,7 +608,7 @@ app.get("/api/shared/:token", requireShareToken, async (req, res) => {
     const { rows } = await pool.query(
       `select decks.title, decks.description,
               cards.front_text, cards.back_text,
-              cards.front_image_url, cards.back_image_url
+              cards.front_image_url, cards.back_image_url, cards.occlusion
        from decks
        left join cards on cards.deck_id = decks.id
        where decks.share_token = $1
@@ -515,9 +644,9 @@ app.post("/api/shared/:token/copy", requireShareToken, requireAuth, async (req, 
        ),
        copied as (
          insert into cards (deck_id, front_text, back_text,
-                            front_image_url, back_image_url, created_at)
+                            front_image_url, back_image_url, occlusion, created_at)
          select new_deck.id, c.front_text, c.back_text,
-                c.front_image_url, c.back_image_url,
+                c.front_image_url, c.back_image_url, c.occlusion,
                 now() + row_number() over (order by c.created_at) * interval '1 millisecond'
          from new_deck, src
          join cards c on c.deck_id = src.id
