@@ -41,7 +41,10 @@
   z-index: 50;
 }
 
-@media (min-width: 768px) {
+/* Only for phones and tablets. This goes by input type rather than screen
+   width: zooming in on a PC shrinks the width the page sees and used to make
+   the button appear, but a mouse is still a mouse at any zoom. */
+@media (hover: hover) and (pointer: fine) {
   .install-prompt {
     display: none;
   }
