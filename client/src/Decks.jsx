@@ -98,18 +98,20 @@ function Decks() {
   const folder = folders.find((f) => f.id === activeFolder) || null;
   const currentFolder = folder ? folder.id : "all";
 
+  // Decks and folders load side by side but independently: if folders fail
+  // (say, mid-deploy), the decks still show.
   async function loadAll() {
-    try {
-      const [deckResult, folderResult] = await Promise.all([
-        cachedGet(DECKS_PATH),
-        cachedGet(FOLDERS_PATH),
-      ]);
-      setDecks(deckResult.data);
-      setFolders(folderResult.data);
-      setOffline(deckResult.offline);
-    } catch (e) {
-      setError(e.message);
+    const [deckResult, folderResult] = await Promise.allSettled([
+      cachedGet(DECKS_PATH),
+      cachedGet(FOLDERS_PATH),
+    ]);
+    if (deckResult.status === "fulfilled") {
+      setDecks(deckResult.value.data);
+      setOffline(deckResult.value.offline);
+    } else {
+      setError(deckResult.reason.message);
     }
+    if (folderResult.status === "fulfilled") setFolders(folderResult.value.data);
   }
 
   function changeSort(next) {
@@ -167,7 +169,7 @@ function Decks() {
   }
 
   async function handleDeleteFolder() {
-    if (!window.confirm(`Delete the folder "${folder.name}"? Its decks stay, just outside any folder.`)) {
+    if (!window.confirm(`Delete the folder "${folder.name}"?`)) {
       return;
     }
     try {
@@ -384,7 +386,6 @@ function Decks() {
             (drag ? " folder-chip-droppable" : "") +
             (drag?.folder === "none" ? " folder-chip-over" : "")
           }
-          title={drag ? "Drop here to take the deck out of its folder" : undefined}
           onClick={() => openFolder("all")}
         >
           All decks <span className="folder-count">{decks.length}</span>
@@ -461,9 +462,7 @@ function Decks() {
 
       {notice && <p className="notice">{notice}</p>}
       {offline && (
-        <p className="notice">
-          You're offline. These are the decks saved on this device.
-        </p>
+        <p className="notice">Offline</p>
       )}
 
       {inFolder.length >= TOOLS_FROM && (
@@ -551,7 +550,6 @@ function Decks() {
                 <button
                   className="drag-handle"
                   aria-label={`Move ${deck.title}. Drag, or use the arrow keys`}
-                  title="Drag to reorder, or onto a folder"
                   onPointerDown={(e) => startDrag(e, shownDecks, i)}
                   onPointerMove={moveDrag}
                   onPointerUp={() => endDrag(shownDecks)}
@@ -598,11 +596,6 @@ function Decks() {
         )}
         {inFolder.length > 0 && shownDecks.length === 0 && (
           <p className="deck-empty">No decks match "{query.trim()}".</p>
-        )}
-        {folder && inFolder.length === 0 && (
-          <p className="deck-empty">
-            This folder is empty. Make a deck below, or move one here with Edit.
-          </p>
         )}
       </div>
 

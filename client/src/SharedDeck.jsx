@@ -103,9 +103,6 @@ function SharedDeck({ token }) {
               >
                 {saving ? "Saving…" : "Save a copy to my decks"}
               </button>
-              <p className="deck-empty">
-                You get your own copy to edit. Changes the owner makes later won't reach it.
-              </p>
             </>
           )}
         </div>

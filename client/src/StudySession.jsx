@@ -35,12 +35,12 @@ function ratingForDrag(dx, dy) {
   return null;
 }
 
-function CardFace({ side, card, hint }) {
+function CardFace({ side, card }) {
   if (card.occlusion) {
     const reveal = side === "back";
     return (
       <div className={`study-face study-face-${side}`}>
-        <div className="study-card-label">{reveal ? "Answer" : "What's under the box?"}</div>
+        <div className="study-card-label">{reveal ? "Answer" : "Question"}</div>
         <OcclusionView
           src={card.front_image_url}
           boxes={card.occlusion.boxes}
@@ -48,7 +48,6 @@ function CardFace({ side, card, hint }) {
           reveal={reveal}
         />
         {reveal && card.back_text && <div className="study-card-text">{card.back_text}</div>}
-        <div className="study-card-hint">{hint}</div>
       </div>
     );
   }
@@ -59,7 +58,6 @@ function CardFace({ side, card, hint }) {
       <div className="study-card-label">{side === "front" ? "Question" : "Answer"}</div>
       {image && <img className="study-card-image" src={image} alt="" draggable="false" />}
       {text && <div className="study-card-text">{text}</div>}
-      <div className="study-card-hint">{hint}</div>
     </div>
   );
 }
@@ -344,8 +342,8 @@ function StudySession({ deck, cards: initialCards, title, onExit }) {
               onPointerCancel={onPointerUp}
             >
               <div className={"study-card-inner" + (flipped ? " is-flipped" : "")}>
-                <CardFace side="front" card={current} hint="tap to flip" />
-                <CardFace side="back" card={current} hint="swipe or pick below" />
+                <CardFace side="front" card={current} />
+                <CardFace side="back" card={current} />
               </div>
               {!current.occlusion && (
                 <button
@@ -375,9 +373,6 @@ function StudySession({ deck, cards: initialCards, title, onExit }) {
               Remembered <kbd>3</kbd>
             </button>
           </div>
-          <p className="study-keys-hint">
-            Space to flip · 1 2 3 to rate{current.occlusion ? "" : " · E to edit"} · Esc to stop
-          </p>
         </>
       )}
     </div>

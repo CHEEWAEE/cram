@@ -161,11 +161,7 @@ function App() {
           <div className="check-email-icon" aria-hidden="true">✉</div>
           <h2>Check your inbox</h2>
           <p className="check-email-text">
-            We sent a link to <strong>{email}</strong>. Click it to confirm your
-            account and you'll be logged straight in.
-          </p>
-          <p className="deck-empty">
-            Nothing after a minute? Check spam, or send it again.
+            Sent to <strong>{email}</strong>
           </p>
           <div className="auth-actions">
             <button className="auth-button auth-button-secondary" onClick={handleResend}>
