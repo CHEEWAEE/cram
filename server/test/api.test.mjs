@@ -344,3 +344,29 @@ test("CORS preflight answers can be cached", async () => {
   });
   assert.equal(res.headers.get("access-control-max-age"), "7200");
 });
+
+test("decks keep the order they were dragged into", async () => {
+  const user = "00000000-0000-4000-8000-0000000000cc";
+  await db.query("insert into auth.users values ($1)", [user]);
+  const a = await makeDeck(user, "A");
+  const b = await makeDeck(user, "B");
+  const c = await makeDeck(user, "C");
+  let { body } = await api("/api/decks", { user });
+  assert.deepEqual(body.map((d) => d.title), ["C", "B", "A"]); // newest first by default
+
+  const saved = await api("/api/decks/order", { user, method: "PUT", body: { deckIds: [b, a, c] } });
+  assert.equal(saved.body.updated, 3);
+  ({ body } = await api("/api/decks", { user }));
+  assert.deepEqual(body.map((d) => d.title), ["B", "A", "C"]);
+
+  // A deck made after the reorder goes on top.
+  await makeDeck(user, "D");
+  ({ body } = await api("/api/decks", { user }));
+  assert.deepEqual(body.map((d) => d.title), ["D", "B", "A", "C"]);
+
+  // Someone else's ids are ignored, and junk is rejected.
+  const other = await api("/api/decks/order", { user: USER_B, method: "PUT", body: { deckIds: [c, b, a] } });
+  assert.equal(other.body.updated, 0);
+  const junk = await api("/api/decks/order", { user, method: "PUT", body: { deckIds: ["x"] } });
+  assert.equal(junk.status, 400);
+});

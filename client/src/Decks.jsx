@@ -8,7 +8,8 @@ const FOLDERS_PATH = "/api/folders";
 const SORT_KEY = "cram.deckSort";
 const FOLDER_KEY = "cram.folder";
 const SORTS = {
-  newest: { label: "Newest", compare: () => 0 }, // the API already returns newest first
+  custom: { label: "My order", compare: () => 0 }, // the API returns decks in this order
+  newest: { label: "Newest", compare: (a, b) => b.created_at.localeCompare(a.created_at) },
   az: { label: "A–Z", compare: (a, b) => a.title.localeCompare(b.title) },
   weakest: {
     label: "Weakest first",
@@ -19,6 +20,10 @@ const SORTS = {
 };
 // Search and sort only earn their space once there are a few decks.
 const TOOLS_FROM = 4;
+// Matches the gap between deck rows in the CSS.
+const ROW_GAP = 12;
+// How close to the top or bottom of the screen a drag starts scrolling.
+const SCROLL_EDGE = 70;
 
 function loadPref(key, fallback, isValid = () => true) {
   try {
@@ -56,7 +61,11 @@ function Decks() {
   const [notice, setNotice] = useState("");
   const [offline, setOffline] = useState(false);
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState(() => loadPref(SORT_KEY, "newest", (v) => SORTS[v]));
+  const [sort, setSort] = useState(() => loadPref(SORT_KEY, "custom", (v) => SORTS[v]));
+  // While a deck is being dragged: which row, how far it has moved, where it
+  // would land, and which folder pill (if any) it's over.
+  const [drag, setDrag] = useState(null);
+  const rowRefs = useRef(new Map());
   // The folder name boxes save on Enter and on blur; this stops one typing
   // session from saving twice when both happen.
   const folderBusy = useRef(false);
@@ -245,6 +254,99 @@ function Decks() {
     }
   }
 
+  async function moveToFolder(deck, folderId) {
+    if ((deck.folder_id || null) === folderId) return;
+    setDecks((list) => list.map((d) => (d.id === deck.id ? { ...d, folder_id: folderId } : d)));
+    try {
+      await authFetch(`/api/decks/${deck.id}/folder`, {
+        method: "PUT",
+        body: JSON.stringify({ folderId }),
+      });
+      const where = folderId ? `into ${folders.find((f) => f.id === folderId)?.name}` : "out of its folder";
+      setNotice(`Moved "${deck.title}" ${where}.`);
+      setError("");
+    } catch (e) {
+      setError(e.message);
+      loadAll();
+    }
+  }
+
+  // Moves one of the shown decks from one slot to another. The shown decks
+  // may be a slice of the full list (a folder, say), so the new arrangement is
+  // written back into the slots those decks held, and the whole list saved.
+  async function reorder(shown, from, to) {
+    if (from === to || to < 0 || to >= shown.length) return;
+    const moved = [...shown];
+    const [deck] = moved.splice(from, 1);
+    moved.splice(to, 0, deck);
+
+    const movedIds = new Set(moved.map((d) => d.id));
+    let k = 0;
+    const next = [...decks]
+      .sort(SORTS[sort].compare)
+      .map((d) => (movedIds.has(d.id) ? moved[k++] : d))
+      .map((d, i) => ({ ...d, position: i + 1 }));
+
+    setDecks(next);
+    changeSort("custom"); // what you see is now your order
+    try {
+      await authFetch("/api/decks/order", {
+        method: "PUT",
+        body: JSON.stringify({ deckIds: next.map((d) => d.id) }),
+      });
+    } catch (e) {
+      setError(e.message);
+      loadAll();
+    }
+  }
+
+  function startDrag(e, shown, index) {
+    if (e.button > 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    // Row positions in page coordinates, so scrolling mid-drag doesn't skew them.
+    const slots = shown.map((d) => {
+      const r = rowRefs.current.get(d.id).getBoundingClientRect();
+      return { top: r.top + window.scrollY, height: r.height };
+    });
+    setDrag({ id: shown[index].id, index, startY: e.clientY + window.scrollY, dy: 0, slots, target: index, folder: null });
+  }
+
+  function moveDrag(e) {
+    if (!drag) return;
+    if (e.clientY < SCROLL_EDGE) window.scrollBy(0, -12);
+    else if (e.clientY > window.innerHeight - SCROLL_EDGE) window.scrollBy(0, 12);
+
+    const dy = e.clientY + window.scrollY - drag.startY;
+    const me = drag.slots[drag.index];
+    const center = me.top + me.height / 2 + dy;
+    const target = drag.slots.filter((s, j) => j !== drag.index && s.top + s.height / 2 < center).length;
+    // The dragged row sits under the pointer, so look beneath it for a pill.
+    const pill = document
+      .elementsFromPoint(e.clientX, e.clientY)
+      .map((el) => el.closest("[data-folder-drop]"))
+      .find(Boolean);
+    setDrag({ ...drag, dy, target, folder: pill ? pill.dataset.folderDrop : null });
+  }
+
+  function endDrag(shown) {
+    if (!drag) return;
+    const deck = shown[drag.index];
+    if (drag.folder !== null) moveToFolder(deck, drag.folder === "none" ? null : drag.folder);
+    else reorder(shown, drag.index, drag.target);
+    setDrag(null);
+  }
+
+  // How far a row slides to open a gap where the dragged deck would land.
+  function rowShift(i) {
+    if (!drag || drag.folder !== null || i === drag.index) return 0;
+    const { index: d, target: t } = drag;
+    const room = drag.slots[d].height + ROW_GAP;
+    if (d < t && i > d && i <= t) return -room;
+    if (d > t && i >= t && i < d) return room;
+    return 0;
+  }
+
   if (selectedDeck) {
     return (
       <DeckDetail
@@ -275,7 +377,14 @@ function Decks() {
         <button
           role="tab"
           aria-selected={currentFolder === "all"}
-          className={"folder-chip" + (currentFolder === "all" ? " folder-chip-active" : "")}
+          data-folder-drop="none"
+          className={
+            "folder-chip" +
+            (currentFolder === "all" ? " folder-chip-active" : "") +
+            (drag ? " folder-chip-droppable" : "") +
+            (drag?.folder === "none" ? " folder-chip-over" : "")
+          }
+          title={drag ? "Drop here to take the deck out of its folder" : undefined}
           onClick={() => openFolder("all")}
         >
           All decks <span className="folder-count">{decks.length}</span>
@@ -285,7 +394,13 @@ function Decks() {
             key={f.id}
             role="tab"
             aria-selected={currentFolder === f.id}
-            className={"folder-chip" + (currentFolder === f.id ? " folder-chip-active" : "")}
+            data-folder-drop={f.id}
+            className={
+              "folder-chip" +
+              (currentFolder === f.id ? " folder-chip-active" : "") +
+              (drag ? " folder-chip-droppable" : "") +
+              (drag?.folder === f.id ? " folder-chip-over" : "")
+            }
             onClick={() => openFolder(f.id)}
           >
             {f.name}{" "}
@@ -377,7 +492,7 @@ function Decks() {
       )}
 
       <div className="deck-list">
-        {shownDecks.map((deck) =>
+        {shownDecks.map((deck, i) =>
           editingDeckId === deck.id ? (
             <div className="deck-row-editing" key={deck.id}>
               <input
@@ -421,7 +536,36 @@ function Decks() {
               </div>
             </div>
           ) : (
-            <div className="deck-row" key={deck.id}>
+            <div
+              className={"deck-row" + (drag?.id === deck.id ? " deck-row-dragging" : "")}
+              key={deck.id}
+              ref={(el) => (el ? rowRefs.current.set(deck.id, el) : rowRefs.current.delete(deck.id))}
+              style={{
+                transform:
+                  drag?.id === deck.id
+                    ? `translateY(${drag.dy}px)${drag.folder !== null ? " scale(0.96)" : ""}`
+                    : `translateY(${rowShift(i)}px)`,
+              }}
+            >
+              {!needle && (
+                <button
+                  className="drag-handle"
+                  aria-label={`Move ${deck.title}. Drag, or use the arrow keys`}
+                  title="Drag to reorder, or onto a folder"
+                  onPointerDown={(e) => startDrag(e, shownDecks, i)}
+                  onPointerMove={moveDrag}
+                  onPointerUp={() => endDrag(shownDecks)}
+                  onPointerCancel={() => setDrag(null)}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                      e.preventDefault();
+                      reorder(shownDecks, i, e.key === "ArrowUp" ? i - 1 : i + 1);
+                    }
+                  }}
+                >
+                  ⠿
+                </button>
+              )}
               <button
                 className="deck-row-main"
                 onClick={() => setSelectedDeck(deck)}

@@ -73,7 +73,7 @@ app.get("/api/decks", requireAuth, async (req, res) => {
        left join cards on cards.deck_id = decks.id
        where decks.user_id = $1
        group by decks.id
-       order by decks.created_at desc`,
+       order by decks.position asc nulls first, decks.created_at desc`,
       [req.user.id]
     );
     res.json(rows);
@@ -571,6 +571,34 @@ app.post(
     }
   }
 );
+
+// Saves the order decks were dragged into. `deckIds` lists the user's decks
+// top to bottom; ids that aren't theirs are ignored. Decks made since the last
+// reorder have no position and sort to the top, newest first.
+const MAX_REORDER = 2000;
+
+app.put("/api/decks/order", requireAuth, async (req, res) => {
+  const { deckIds } = req.body;
+  if (
+    !Array.isArray(deckIds) ||
+    deckIds.length > MAX_REORDER ||
+    !deckIds.every((id) => typeof id === "string" && UUID_RE.test(id))
+  ) {
+    return res.status(400).json({ error: "deckIds must be a list of deck ids" });
+  }
+  try {
+    const { rows } = await pool.query(
+      `update decks set position = t.n
+       from unnest($1::uuid[]) with ordinality as t(id, n)
+       where decks.id = t.id and decks.user_id = $2
+       returning decks.id`,
+      [deckIds, req.user.id]
+    );
+    res.json({ updated: rows.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ---- folders ----
 // One level of folders for grouping decks. Deleting a folder keeps its decks;
