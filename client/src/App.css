@@ -1617,6 +1617,9 @@
 
 /* ---- folders ---- */
 .folder-bar {
+  /* Above a dragged deck, so the pill it's dropping onto stays visible. */
+  position: relative;
+  z-index: 30;
   display: flex;
   gap: 6px;
   overflow-x: auto;
@@ -1698,4 +1701,62 @@
   color: var(--accent);
   font-size: 11px;
   font-weight: 600;
+}
+
+/* ---- dragging decks ---- */
+.deck-row {
+  transition: border-color 120ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.deck-row-dragging {
+  position: relative;
+  z-index: 20;
+  transition: box-shadow 160ms ease;
+  box-shadow: var(--shadow);
+  border-color: var(--accent-border);
+}
+
+.drag-handle {
+  flex: none;
+  align-self: stretch;
+  width: 28px;
+  margin-left: 4px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+  opacity: 0.55;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+
+.drag-handle:hover,
+.drag-handle:focus-visible {
+  opacity: 1;
+  background: var(--bg);
+}
+
+.deck-row-dragging .drag-handle {
+  cursor: grabbing;
+  opacity: 1;
+}
+
+.folder-chip-droppable {
+  border-style: dashed;
+  border-color: var(--accent-border);
+}
+
+.folder-chip-over {
+  background: var(--accent);
+  border-color: var(--accent);
+  border-style: solid;
+  color: #fff;
+  transform: scale(1.06);
+}
+
+.folder-chip-over .folder-count {
+  color: #fff;
 }

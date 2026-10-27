@@ -22,6 +22,8 @@ create table decks (
   description text,
   share_token uuid unique,
   folder_id uuid references folders (id) on delete set null,
+  -- Where the deck was dragged to in the list; null for decks made since.
+  position integer,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
