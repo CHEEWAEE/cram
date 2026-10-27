@@ -32,28 +32,35 @@ export async function authFetch(path, options = {}) {
   return body;
 }
 
-// Reads go through here so decks and cards still open with no signal: every
-// successful GET is saved, and if the network is down the saved copy comes
-// back instead, flagged with `offline: true`.
+// Every successful read is saved on the device. Pages show the saved copy
+// at once and swap in fresh data when it arrives, so a slow or sleeping API
+// never leaves a blank screen; with no signal at all, the saved copy is it.
 const CACHE_PREFIX = "cram.cache:";
+
+export function readCache(path) {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_PREFIX + path));
+  } catch {
+    return null;
+  }
+}
+
+export function writeCache(path, data) {
+  try {
+    localStorage.setItem(CACHE_PREFIX + path, JSON.stringify(data));
+  } catch {
+    // Storage full or blocked; the live data is still fine to use.
+  }
+}
 
 export async function cachedGet(path) {
   try {
     const data = await authFetch(path);
-    try {
-      localStorage.setItem(CACHE_PREFIX + path, JSON.stringify(data));
-    } catch {
-      // Storage full or blocked; the live data is still fine to use.
-    }
+    writeCache(path, data);
     return { data, offline: false };
   } catch (e) {
     if (!(e instanceof OfflineError)) throw e;
-    let saved = null;
-    try {
-      saved = JSON.parse(localStorage.getItem(CACHE_PREFIX + path));
-    } catch {
-      // fall through to rethrow
-    }
+    const saved = readCache(path);
     if (saved === null) throw e;
     return { data: saved, offline: true };
   }

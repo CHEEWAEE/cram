@@ -285,3 +285,62 @@ test("image occlusion cards survive sharing and copying", async () => {
   const { body: copied } = await api(`/api/decks/${copy.id}/cards`, { user: USER_B });
   assert.equal(copied[0].occlusion.boxes[0].label, "Patella");
 });
+
+test("folders: create, rename, move decks in and out, delete keeps decks", async () => {
+  const { body: folder } = await api("/api/folders", { user: USER_A, method: "POST", body: { name: "  Semester 1 " } });
+  assert.equal(folder.name, "Semester 1");
+  const renamed = await api(`/api/folders/${folder.id}`, { user: USER_A, method: "PATCH", body: { name: "Sem 1" } });
+  assert.equal(renamed.body.name, "Sem 1");
+  assert.equal((await api("/api/folders", { user: USER_A, method: "POST", body: { name: " " } })).status, 400);
+
+  const deckId = await makeDeck(USER_A, "In a folder");
+  const moved = await api(`/api/decks/${deckId}/folder`, { user: USER_A, method: "PUT", body: { folderId: folder.id } });
+  assert.equal(moved.body.folder_id, folder.id);
+  let { body: decks } = await api("/api/decks", { user: USER_A });
+  assert.equal(decks.find((d) => d.id === deckId).folder_id, folder.id);
+
+  const out = await api(`/api/decks/${deckId}/folder`, { user: USER_A, method: "PUT", body: { folderId: null } });
+  assert.equal(out.body.folder_id, null);
+
+  await api(`/api/decks/${deckId}/folder`, { user: USER_A, method: "PUT", body: { folderId: folder.id } });
+  assert.equal((await api(`/api/folders/${folder.id}`, { user: USER_A, method: "DELETE" })).status, 204);
+  ({ body: decks } = await api("/api/decks", { user: USER_A }));
+  const deck = decks.find((d) => d.id === deckId);
+  assert.ok(deck, "the deck survives its folder");
+  assert.equal(deck.folder_id, null);
+});
+
+test("a new deck can be created straight into your own folder only", async () => {
+  const { body: folder } = await api("/api/folders", { user: USER_A, method: "POST", body: { name: "Direct" } });
+  const made = await api("/api/decks", { user: USER_A, method: "POST", body: { title: "Filed", folderId: folder.id } });
+  assert.equal(made.body.folder_id, folder.id);
+  const stranger = await api("/api/decks", { user: USER_B, method: "POST", body: { title: "Sneaky", folderId: folder.id } });
+  assert.equal(stranger.status, 404);
+});
+
+test("folders are private to their owner", async () => {
+  const { body: folderA } = await api("/api/folders", { user: USER_A, method: "POST", body: { name: "Mine" } });
+  const deckB = await makeDeck(USER_B, "B's deck");
+  const deckA = await makeDeck(USER_A, "A's deck");
+
+  const { body: listB } = await api("/api/folders", { user: USER_B });
+  assert.ok(!listB.some((f) => f.id === folderA.id));
+  assert.equal((await api(`/api/folders/${folderA.id}`, { user: USER_B, method: "PATCH", body: { name: "x" } })).status, 404);
+  assert.equal((await api(`/api/folders/${folderA.id}`, { user: USER_B, method: "DELETE" })).status, 404);
+  // B can't file their deck in A's folder, or move A's deck at all.
+  assert.equal((await api(`/api/decks/${deckB}/folder`, { user: USER_B, method: "PUT", body: { folderId: folderA.id } })).status, 404);
+  assert.equal((await api(`/api/decks/${deckA}/folder`, { user: USER_B, method: "PUT", body: { folderId: null } })).status, 404);
+  assert.equal((await api(`/api/decks/${deckA}/folder`, { user: USER_A, method: "PUT", body: { folderId: "nope" } })).status, 404);
+});
+
+test("CORS preflight answers can be cached", async () => {
+  const res = await fetch(`${base}/api/decks`, {
+    method: "OPTIONS",
+    headers: {
+      origin: "https://www.appcram.com",
+      "access-control-request-method": "GET",
+      "access-control-request-headers": "authorization,content-type",
+    },
+  });
+  assert.equal(res.headers.get("access-control-max-age"), "7200");
+});

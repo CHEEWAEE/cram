@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { authFetch, cachedGet, resolveImage } from "./api";
+import { authFetch, cachedGet, readCache, resolveImage, writeCache } from "./api";
 import CardSideField from "./CardSideField";
 import CardEditForm from "./CardEditForm";
 import ImportCards from "./ImportCards";
@@ -45,7 +45,9 @@ function averageStrength(cards) {
 }
 
 function DeckDetail({ deck, onBack }) {
-  const [cards, setCards] = useState([]);
+  const cardsPath = `/api/decks/${deck.id}/cards`;
+  // Open on the copy saved last time; loadCards swaps in fresh data.
+  const [cards, setCards] = useState(() => readCache(cardsPath) || []);
   const [offline, setOffline] = useState(false);
   const [newCardFront, setNewCardFront] = useState("");
   const [newCardBack, setNewCardBack] = useState("");
@@ -68,9 +70,15 @@ function DeckDetail({ deck, onBack }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deck.id]);
 
+  // Local edits update the list without a reload, so keep the saved copy in
+  // step with them for the next time this deck opens.
+  useEffect(() => {
+    if (!offline) writeCache(cardsPath, cards);
+  }, [cards, cardsPath, offline]);
+
   async function loadCards() {
     try {
-      const { data, offline: fromCache } = await cachedGet(`/api/decks/${deck.id}/cards`);
+      const { data, offline: fromCache } = await cachedGet(cardsPath);
       setCards(data);
       setOffline(fromCache);
     } catch (e) {
@@ -107,7 +115,7 @@ function DeckDetail({ deck, onBack }) {
         resolveImage(deck.id, newCardFrontImage),
         resolveImage(deck.id, newCardBackImage),
       ]);
-      await authFetch(`/api/decks/${deck.id}/cards`, {
+      const created = await authFetch(`/api/decks/${deck.id}/cards`, {
         method: "POST",
         body: JSON.stringify({
           frontText: newCardFront,
@@ -121,7 +129,7 @@ function DeckDetail({ deck, onBack }) {
       setNewCardFrontImage(null);
       setNewCardBackImage(null);
       setError("");
-      await loadCards();
+      setCards((list) => [...list, created]);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -136,7 +144,7 @@ function DeckDetail({ deck, onBack }) {
         method: "DELETE",
       });
       setError("");
-      await loadCards();
+      setCards((list) => list.filter((c) => c.id !== card.id));
     } catch (e) {
       setError(e.message);
     }
@@ -356,10 +364,10 @@ function DeckDetail({ deck, onBack }) {
               deckId={deck.id}
               card={card}
               onCancel={() => setEditingCardId(null)}
-              onSaved={() => {
+              onSaved={(updated) => {
                 setEditingCardId(null);
                 setError("");
-                loadCards();
+                setCards((list) => list.map((c) => (c.id === updated.id ? updated : c)));
               }}
             />
           ) : (

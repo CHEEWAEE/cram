@@ -5,17 +5,29 @@
 -- which connects as the table owner (postgres, which bypasses RLS) and checks
 -- ownership itself.
 
+-- One level of folders for grouping decks.
+create table folders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now()
+);
+
+create index folders_user_id_idx on folders (user_id);
+
 create table decks (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   title text not null,
   description text,
   share_token uuid unique,
+  folder_id uuid references folders (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index decks_user_id_idx on decks (user_id);
+create index decks_folder_id_idx on decks (folder_id);
 
 create table cards (
   id uuid primary key default gen_random_uuid(),
@@ -47,7 +59,9 @@ create table reviews (
 );
 
 create index reviews_card_id_idx on reviews (card_id);
+create index reviews_user_id_idx on reviews (user_id);
 
+alter table folders enable row level security;
 alter table decks enable row level security;
 alter table cards enable row level security;
 alter table reviews enable row level security;
