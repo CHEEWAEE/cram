@@ -173,7 +173,7 @@ function DeckDetail({ deck, onBack }) {
     }
     try {
       await navigator.clipboard.writeText(url);
-      setNotice("Link copied. Anyone with it can save their own copy.");
+      setNotice("Link copied");
     } catch {
       setNotice(url);
     }
@@ -193,7 +193,7 @@ function DeckDetail({ deck, onBack }) {
   }
 
   async function handleStopSharing() {
-    if (!window.confirm("Turn off the share link? Copies people already saved stay theirs.")) {
+    if (!window.confirm("Turn off the share link?")) {
       return;
     }
     try {
@@ -242,15 +242,12 @@ function DeckDetail({ deck, onBack }) {
       </div>
 
       {offline && (
-        <p className="notice">
-          You're offline, so this is the copy saved on this device. You can still
-          study it; ratings sync when you're back online.
-        </p>
+        <p className="notice">Offline</p>
       )}
 
       {shareToken && (
         <p className="notice">
-          {notice || "This deck has a share link."}{" "}
+          {notice || "Shared"}{" "}
           <button className="auth-link inline-link" onClick={handleStopSharing}>
             Stop sharing
           </button>

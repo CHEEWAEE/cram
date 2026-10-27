@@ -46,10 +46,6 @@ function ImportCards({ deckId, onImported, onCancel }) {
           Close
         </button>
       </div>
-      <p className="deck-empty import-help">
-        One card per line, front and back split by a tab, dash, colon or comma.
-        Quizlet and Anki exports paste straight in.
-      </p>
       <textarea
         className="import-text"
         value={text}

@@ -206,10 +206,6 @@ function OcclusionEditor({ deckId, initial, onSaved, onCancel }) {
 
   return (
     <div className="occl-editor">
-      <p className="deck-empty occl-help">
-        Drag over the parts to hide. Each box becomes its own card. Drag a box to
-        move it.
-      </p>
       <div
         ref={surfaceRef}
         className="occl occl-surface"

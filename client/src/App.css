@@ -647,13 +647,6 @@
   pointer-events: none;
 }
 
-.study-card-hint {
-  margin-top: auto;
-  padding-top: 8px;
-  font-size: 12px;
-  color: var(--text);
-}
-
 /* Shows which rating a swipe will give, like a rubber stamp on the card. */
 .study-card-stamp {
   position: absolute;
@@ -736,15 +729,8 @@
   border-color: var(--good);
 }
 
-.study-keys-hint {
-  font-size: 12px;
-  color: var(--text);
-  text-align: center;
-}
-
 /* Touch screens get swipes, not keyboard shortcuts. */
 @media (hover: none) {
-  .study-keys-hint,
   .study-button kbd {
     display: none;
   }
@@ -1307,10 +1293,6 @@
   align-items: center;
 }
 
-.import-help {
-  margin: 0;
-}
-
 .import-text {
   width: 100%;
   box-sizing: border-box;
@@ -1528,11 +1510,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.occl-help {
-  margin: 0;
-  text-align: left;
 }
 
 .occl-surface {
