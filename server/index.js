@@ -4,7 +4,6 @@ const express = require("express");
 const cors = require("cors");
 const { createRemoteJWKSet, jwtVerify } = require("jose");
 const { pool } = require("./db");
-const { supabase } = require("./supabase");
 
 const app = express();
 
@@ -18,7 +17,11 @@ const ALLOWED_ORIGINS = (
   .map((o) => o.trim())
   .filter(Boolean);
 
-app.use(cors({ origin: ALLOWED_ORIGINS }));
+// The site and the API live on different domains, so every request with a
+// login token is preceded by a CORS preflight. maxAge lets the browser reuse
+// the answer for 2 hours (Chrome's cap) instead of re-asking every few seconds,
+// which otherwise doubles the round trips on every click.
+app.use(cors({ origin: ALLOWED_ORIGINS, maxAge: 7200 }));
 app.use(express.json({ limit: "1mb" })); // card images upload straight to storage, so bodies stay small
 
 // Supabase signs auth tokens with project-specific asymmetric keys (ES256),
@@ -81,15 +84,24 @@ app.get("/api/decks", requireAuth, async (req, res) => {
 
 app.post("/api/decks", requireAuth, async (req, res) => {
   const { title, description } = req.body;
+  const folderId = req.body.folderId ?? null;
   if (!title || !title.trim()) {
     return res.status(400).json({ error: "title is required" });
   }
+  if (folderId !== null && !UUID_RE.test(String(folderId))) {
+    return res.status(404).json({ error: "Folder not found" });
+  }
 
   try {
+    // An optional folderId files the new deck straight away, if it's yours.
     const { rows } = await pool.query(
-      "insert into decks (user_id, title, description) values ($1, $2, $3) returning *",
-      [req.user.id, title.trim(), description || null]
+      `insert into decks (user_id, title, description, folder_id)
+       select $1, $2, $3, $4
+       where $4::uuid is null or exists (select 1 from folders where id = $4 and user_id = $1)
+       returning *`,
+      [req.user.id, title.trim(), description || null, folderId]
     );
+    if (!rows[0]) return res.status(404).json({ error: "Folder not found" });
     res.status(201).json(rows[0]);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -206,6 +218,9 @@ app.post("/api/decks/:deckId/uploads", requireAuth, async (req, res) => {
     );
     if (!rows[0]) return res.status(404).json({ error: "Deck not found" });
 
+    // Loaded here rather than at the top: supabase-js is the heaviest import and
+    // only uploads use it, so every other cold start skips it.
+    const { supabase } = require("./supabase");
     const path = `${req.params.deckId}/${crypto.randomUUID()}.${ext}`;
     const { data, error } = await supabase.storage
       .from("card-images")
@@ -556,6 +571,91 @@ app.post(
     }
   }
 );
+
+// ---- folders ----
+// One level of folders for grouping decks. Deleting a folder keeps its decks;
+// they just go back to having no folder.
+const MAX_FOLDER_NAME = 60;
+
+function folderName(body) {
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  if (!name) throw Object.assign(new Error("Folder name is required"), { status: 400 });
+  return name.slice(0, MAX_FOLDER_NAME);
+}
+
+app.get("/api/folders", requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "select * from folders where user_id = $1 order by lower(name)",
+      [req.user.id]
+    );
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/folders", requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "insert into folders (user_id, name) values ($1, $2) returning *",
+      [req.user.id, folderName(req.body)]
+    );
+    res.status(201).json(rows[0]);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+app.patch("/api/folders/:folderId", requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "update folders set name = $1 where id = $2 and user_id = $3 returning *",
+      [folderName(req.body), req.params.folderId, req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Folder not found" });
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+app.delete("/api/folders/:folderId", requireAuth, async (req, res) => {
+  try {
+    // decks.folder_id is "on delete set null", so the decks stay put.
+    const { rows } = await pool.query(
+      "delete from folders where id = $1 and user_id = $2 returning id",
+      [req.params.folderId, req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Folder not found" });
+    res.status(204).end();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Moves a deck into a folder, or out of one with { folderId: null }. Both the
+// deck and the folder have to be yours.
+app.put("/api/decks/:deckId/folder", requireAuth, async (req, res) => {
+  const folderId = req.body?.folderId ?? null;
+  if (folderId !== null && !UUID_RE.test(String(folderId))) {
+    return res.status(404).json({ error: "Deck or folder not found" });
+  }
+  try {
+    const { rows } = await pool.query(
+      `update decks set folder_id = $1, updated_at = now()
+       where id = $2 and user_id = $3
+         and ($1::uuid is null or exists (
+           select 1 from folders where id = $1 and user_id = $3))
+       returning *`,
+      [folderId, req.params.deckId, req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Deck or folder not found" });
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ---- sharing ----
 // A shared deck is reachable by anyone holding its random token. Saving one makes

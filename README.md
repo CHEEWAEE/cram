@@ -6,6 +6,7 @@ Flashcards that install as an app on your phone. Live at https://www.appcram.com
 - Image boxes: cover parts of a diagram and recall what's underneath, one card per box
 - Rate each card by swiping, tapping, or pressing 1 2 3. Missed cards come back until they stick
 - Weak cards, Quick 10 and back-to-front study modes
+- Folders to group decks by subject
 - Works offline. Decks you've opened are saved on the device and ratings sync later
 - Share a deck with a link; saving it makes your own copy
 
