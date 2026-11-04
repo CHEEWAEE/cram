@@ -1,26 +1,40 @@
-/* Warm paper and marker orange. The rating colours (--bad, --meh, --good) are
-   separate from the brand accent so "Remembered" never reads as a primary button. */
+/* Cram is built from a ruled index card: white stock, pale blue lines, one red
+   line across the top, typed in blue-black ink, lying on a cool grey desk.
+   Highlighter yellow marks whatever is selected or being asked. The rating
+   colours are the red / yellow / green tabs of a Leitner card box. */
 :root {
-  --text: #6b645a;
-  --text-h: #1c1915;
-  --bg: #f4f1ea;
-  --surface: #fffdf9;
-  --border: #e3ddd1;
-  --accent: #d9480f;
-  --accent-bg: rgba(217, 72, 15, 0.09);
-  --accent-border: rgba(217, 72, 15, 0.45);
-  --bad: #c92a4a;
-  --meh: #b7791f;
-  --good: #1f8a5b;
+  --bg: #dce2ea; /* the desk */
+  --surface: #ffffff; /* card stock */
+  --surface-2: #eef2f7; /* wells: inputs, tracks */
+  --text-h: #16223d; /* blue-black ink */
+  --text: #56627a;
+  --border: #c3ccd9;
+  --accent: #1f3f99; /* fountain-pen blue: links, focus */
+  --accent-bg: rgba(31, 63, 153, 0.08);
+  --accent-border: rgba(31, 63, 153, 0.4);
+  --ink-hover: #26375f;
+  --on-ink: #ffffff;
+  --rule: #a8c2ec; /* the ruled lines */
+  --margin: #dd3b41; /* the red header line */
+  --hl: #ffe45e; /* highlighter */
+  --hl-soft: #fff5bf;
+  --tape: #fbfcfd; /* correction tape over image boxes */
+  --bad: #c23030;
+  --meh: #8a6400;
+  --good: #1b7a4a;
+  --bad-bg: #fbe0e0;
+  --meh-bg: #fff1b8;
+  --good-bg: #d8f0e2;
+  /* Paper on a desk: a hard edge right under the card, a soft lift below. */
   --shadow:
-    rgba(60, 40, 20, 0.1) 0 10px 15px -3px, rgba(60, 40, 20, 0.05) 0 4px 6px -2px;
+    0 1px 0 rgba(22, 34, 61, 0.1), 0 10px 22px -14px rgba(22, 34, 61, 0.45);
 
-  --sans: 'Schibsted Grotesk', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: 'Schibsted Grotesk', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --sans: 'Atkinson Hyperlegible', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --type: 'Courier Prime', 'Courier New', ui-monospace, monospace;
+  --heading: var(--sans);
+  --mono: var(--type);
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
+  font: 16px/1.5 var(--sans);
   color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
@@ -28,69 +42,67 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --text: #a59e92;
-    --text-h: #f3eee5;
-    --bg: #141311;
-    --surface: #1d1b18;
-    --border: #302c26;
-    --accent: #ff7f41;
-    --accent-bg: rgba(255, 127, 65, 0.13);
-    --accent-border: rgba(255, 127, 65, 0.5);
-    --bad: #f0607c;
-    --meh: #e3a948;
-    --good: #45c08a;
+  :root:not([data-theme="light"]) {
+    --bg: #0f1626;
+    --surface: #18233b;
+    --surface-2: #121b30;
+    --text-h: #e9eef7;
+    --text: #9ba8c0;
+    --border: #2c3b59;
+    --accent: #93b2ff;
+    --accent-bg: rgba(147, 178, 255, 0.12);
+    --accent-border: rgba(147, 178, 255, 0.45);
+    --ink-hover: #ffffff;
+    --on-ink: #0f1626;
+    --rule: rgba(147, 178, 255, 0.16);
+    --margin: #e8676c;
+    --hl: #f2d44a;
+    --hl-soft: rgba(242, 212, 74, 0.16);
+    --tape: #26324d;
+    --bad: #f27878;
+    --meh: #e8b83e;
+    --good: #52c78f;
+    --bad-bg: rgba(242, 120, 120, 0.14);
+    --meh-bg: rgba(232, 184, 62, 0.14);
+    --good-bg: rgba(82, 199, 143, 0.14);
     --shadow:
-      rgba(0, 0, 0, 0.45) 0 10px 15px -3px, rgba(0, 0, 0, 0.3) 0 4px 6px -2px;
+      0 1px 0 rgba(0, 0, 0, 0.35), 0 12px 24px -14px rgba(0, 0, 0, 0.8);
   }
 }
 
-:root[data-theme="light"] {
-  --text: #6b645a;
-  --text-h: #1c1915;
-  --bg: #f4f1ea;
-  --surface: #fffdf9;
-  --border: #e3ddd1;
-  --accent: #d9480f;
-  --accent-bg: rgba(217, 72, 15, 0.09);
-  --accent-border: rgba(217, 72, 15, 0.45);
-  --bad: #c92a4a;
-  --meh: #b7791f;
-  --good: #1f8a5b;
-  --shadow:
-    rgba(60, 40, 20, 0.1) 0 10px 15px -3px, rgba(60, 40, 20, 0.05) 0 4px 6px -2px;
-}
-
 :root[data-theme="dark"] {
-  --text: #a59e92;
-  --text-h: #f3eee5;
-  --bg: #141311;
-  --surface: #1d1b18;
-  --border: #302c26;
-  --accent: #ff7f41;
-  --accent-bg: rgba(255, 127, 65, 0.13);
-  --accent-border: rgba(255, 127, 65, 0.5);
-  --bad: #f0607c;
-  --meh: #e3a948;
-  --good: #45c08a;
+  --bg: #0f1626;
+  --surface: #18233b;
+  --surface-2: #121b30;
+  --text-h: #e9eef7;
+  --text: #9ba8c0;
+  --border: #2c3b59;
+  --accent: #93b2ff;
+  --accent-bg: rgba(147, 178, 255, 0.12);
+  --accent-border: rgba(147, 178, 255, 0.45);
+  --ink-hover: #ffffff;
+  --on-ink: #0f1626;
+  --rule: rgba(147, 178, 255, 0.16);
+  --margin: #e8676c;
+  --hl: #f2d44a;
+  --hl-soft: rgba(242, 212, 74, 0.16);
+  --tape: #26324d;
+  --bad: #f27878;
+  --meh: #e8b83e;
+  --good: #52c78f;
+  --bad-bg: rgba(242, 120, 120, 0.14);
+  --meh-bg: rgba(232, 184, 62, 0.14);
+  --good-bg: rgba(82, 199, 143, 0.14);
   --shadow:
-    rgba(0, 0, 0, 0.45) 0 10px 15px -3px, rgba(0, 0, 0, 0.3) 0 4px 6px -2px;
+    0 1px 0 rgba(0, 0, 0, 0.35), 0 12px 24px -14px rgba(0, 0, 0, 0.8);
 }
 
-/* A faint dot grid, like the paper in a squared notebook. */
 body {
   margin: 0;
-  background-color: var(--bg);
-  background-image: radial-gradient(var(--border) 1px, transparent 1.2px);
-  background-size: 22px 22px;
-  background-attachment: fixed;
+  background: var(--bg);
 }
 
 #root {
@@ -98,7 +110,6 @@ body {
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
-  border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -108,28 +119,33 @@ body {
 h1,
 h2 {
   font-family: var(--heading);
-  font-weight: 500;
+  font-weight: 700;
   color: var(--text-h);
+  letter-spacing: 0;
 }
 
 h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
+  font-size: 48px;
+  line-height: 1.05;
   margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
 }
+
 h2 {
   font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
+  line-height: 1.2;
   margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
 }
+
 p {
   margin: 0;
+}
+
+::selection {
+  background: var(--hl);
+  color: #16223d;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
