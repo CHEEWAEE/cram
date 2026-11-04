@@ -59,7 +59,7 @@ function ImportCards({ deckId, onImported, onCancel }) {
         <div className="import-preview">
           <div className="deck-meta">
             {cards.length} card{cards.length === 1 ? "" : "s"}, split on {SEPARATOR_NAMES[separator]}
-            {skipped.length > 0 && ` · ${skipped.length} line${skipped.length === 1 ? "" : "s"} skipped`}
+            {skipped.length > 0 && `, ${skipped.length} skipped`}
           </div>
           {cards.slice(0, 3).map((c, i) => (
             <div className="import-row" key={i}>
@@ -69,7 +69,7 @@ function ImportCards({ deckId, onImported, onCancel }) {
           ))}
           {skipped.length > 0 && (
             <p className="deck-empty">
-              Skipped (no front and back found): {skipped.slice(0, 3).join(" · ")}
+              Skipped (no front and back found): {skipped.slice(0, 3).join(", ")}
               {skipped.length > 3 && " …"}
             </p>
           )}

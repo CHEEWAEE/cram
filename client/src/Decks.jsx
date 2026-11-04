@@ -25,6 +25,14 @@ const ROW_GAP = 12;
 // How close to the top or bottom of the screen a drag starts scrolling.
 const SCROLL_EDGE = 70;
 
+// How many card edges show behind a deck in the list: a rough sense of size.
+function stackDepth(count = 0) {
+  if (count >= 50) return 3;
+  if (count >= 10) return 2;
+  if (count >= 1) return 1;
+  return 0;
+}
+
 function loadPref(key, fallback, isValid = () => true) {
   try {
     const saved = localStorage.getItem(key);
@@ -538,6 +546,7 @@ function Decks() {
             <div
               className={"deck-row" + (drag?.id === deck.id ? " deck-row-dragging" : "")}
               key={deck.id}
+              data-stack={stackDepth(deck.card_count)}
               ref={(el) => (el ? rowRefs.current.set(deck.id, el) : rowRefs.current.delete(deck.id))}
               style={{
                 transform:

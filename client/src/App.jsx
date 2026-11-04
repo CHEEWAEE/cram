@@ -15,11 +15,10 @@ function DemoStack() {
       <div className="demo-card demo-card-back1" />
       <div className="demo-card demo-card-top">
         <div className="demo-face demo-face-front">
-          <span className="study-card-label">Question</span>
+          <span className="index-head">Pharmacology</span>
           <span className="demo-text">Half-life of caffeine?</span>
         </div>
         <div className="demo-face demo-face-back">
-          <span className="study-card-label">Answer</span>
           <span className="demo-text">About 5 hours</span>
         </div>
       </div>

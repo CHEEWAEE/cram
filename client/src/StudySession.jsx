@@ -35,12 +35,15 @@ function ratingForDrag(dx, dy) {
   return null;
 }
 
-function CardFace({ side, card }) {
+// Like a real index card: the front is ruled, with the topic written above the
+// red line; the back is plain.
+function CardFace({ side, card, topic }) {
+  const head = side === "front" && <div className="index-head study-card-head">{topic}</div>;
   if (card.occlusion) {
     const reveal = side === "back";
     return (
       <div className={`study-face study-face-${side}`}>
-        <div className="study-card-label">{reveal ? "Answer" : "Question"}</div>
+        {head}
         <OcclusionView
           src={card.front_image_url}
           boxes={card.occlusion.boxes}
@@ -55,7 +58,7 @@ function CardFace({ side, card }) {
   const image = side === "front" ? card.front_image_url : card.back_image_url;
   return (
     <div className={`study-face study-face-${side}`}>
-      <div className="study-card-label">{side === "front" ? "Question" : "Answer"}</div>
+      {head}
       {image && <img className="study-card-image" src={image} alt="" draggable="false" />}
       {text && <div className="study-card-text">{text}</div>}
     </div>
@@ -342,8 +345,8 @@ function StudySession({ deck, cards: initialCards, title, onExit }) {
               onPointerCancel={onPointerUp}
             >
               <div className={"study-card-inner" + (flipped ? " is-flipped" : "")}>
-                <CardFace side="front" card={current} />
-                <CardFace side="back" card={current} />
+                <CardFace side="front" card={current} topic={deck.title} />
+                <CardFace side="back" card={current} topic={deck.title} />
               </div>
               {!current.occlusion && (
                 <button

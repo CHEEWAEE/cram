@@ -99,7 +99,7 @@ function DeckDetail({ deck, onBack }) {
   function startSession(sessionCards, title) {
     setSession({
       cards: reversed ? sessionCards.map(swapSides) : sessionCards,
-      title: reversed ? `${title} · back to front` : title,
+      title: reversed ? `${title}, back to front` : title,
     });
   }
 
@@ -280,7 +280,7 @@ function DeckDetail({ deck, onBack }) {
             {cards.length > QUICK_SESSION_SIZE && (
               <button
                 className="study-mode"
-                onClick={() => startSession(quickCards(cards), `${deck.title} · quick 10`)}
+                onClick={() => startSession(quickCards(cards), `${deck.title}, quick 10`)}
               >
                 <span className="study-mode-name">Quick 10</span>
                 <span className="study-mode-sub">random pick</span>
@@ -289,7 +289,7 @@ function DeckDetail({ deck, onBack }) {
             <button
               className="study-mode"
               disabled={weak.length === 0}
-              onClick={() => startSession(weak, `${deck.title} · weak cards`)}
+              onClick={() => startSession(weak, `${deck.title}, weak cards`)}
             >
               <span className="study-mode-name">Weak cards</span>
               <span className="study-mode-sub">
@@ -337,7 +337,7 @@ function DeckDetail({ deck, onBack }) {
                 <span className="card-front">
                   {item.cards.length} box{item.cards.length === 1 ? "" : "es"}
                 </span>
-                {labels.length > 0 && <span className="card-back">{labels.join(" · ")}</span>}
+                {labels.length > 0 && <span className="card-back">{labels.join(", ")}</span>}
                 <div className="row-actions">
                   <button className="icon-button" onClick={() => setEditingGroup(item.group)}>
                     Edit
